@@ -28,6 +28,7 @@
             --lightbox-bg: rgba(0,0,0,0.85);
             --lightbox-nav-bg: rgba(50,50,50,0.6);
             --lightbox-nav-hover-bg: rgba(80,80,80,0.8);
+            --modal-overlay-bg: rgba(0,0,0,0.7);
         }
 
         body.dark-theme {
@@ -38,7 +39,7 @@
             --text-secondary-color: #b0b0b0;
             --border-color: #444444;
             --border-light-color: #383838;
-            --accent-color: #0088ff; /* Slightly brighter blue for dark theme */
+            --accent-color: #0088ff;
             --accent-hover-color: #0066cc;
             --success-color: #30c355;
             --success-hover-color: #26a245;
@@ -46,12 +47,13 @@
             --box-shadow-color: rgba(0,0,0,0.3);
             --input-bg-color: #333333;
             --input-border-color: #555555;
-            --button-text-color: #e0e0e0; /* Changed to a lighter gray for better contrast on dark buttons */
+            /* --button-text-color: #e0e0e0; */ /* Already set in previous, check if button-text-color should be consistent or if accent buttons use white. Keeping general button-text-color */
             --tab-inactive-border: transparent;
             --spinner-light-color: #444444;
             --lightbox-bg: rgba(10,10,10,0.9);
             --lightbox-nav-bg: rgba(30,30,30,0.7);
             --lightbox-nav-hover-bg: rgba(50,50,50,0.9);
+            --modal-overlay-bg: rgba(0,0,0,0.8);
         }
 
         /* --- GENERAL STYLES --- */
@@ -75,8 +77,16 @@
             box-shadow: 0 0 15px var(--box-shadow-color);
             width: 98%;
             max-width: 1400px;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, filter 0.3s ease, opacity 0.3s ease;
         }
+        
+        /* Style for when content is locked/blurred */
+        .container.content-locked {
+            filter: blur(5px);
+            pointer-events: none; /* Make content non-interactive */
+            opacity: 0.6;
+        }
+
 
         h1, h2 {
             text-align: center;
@@ -96,12 +106,12 @@
             border-radius: 20px;
             cursor: pointer;
             font-size: 0.9em;
-            z-index: 1000; /* Ensure it's above most content but can be covered by lightbox modal content if necessary */
+            z-index: 1050; /* Above most content, but below modals */
             transition: background-color 0.3s, color 0.3s, border-color 0.3s;
         }
         #themeToggleButton:hover {
             background-color: var(--accent-color);
-            color: var(--button-text-color);
+            color: var(--button-text-color); /* Assuming accent buttons use a light text color */
         }
 
 
@@ -148,7 +158,9 @@
             font-weight: bold;
             color: var(--text-color);
         }
-        .form-group input[type="text"], .form-group textarea {
+        .form-group input[type="text"], 
+        .form-group input[type="password"], /* Added for API key input */
+        .form-group textarea {
             width: 100%;
             padding: 10px;
             border: 1px solid var(--input-border-color);
@@ -194,36 +206,35 @@
             border-bottom: 1px solid var(--border-light-color);
             cursor: pointer;
             display: flex;
-            align-items: center; /* Align checkbox with text better */
+            align-items: center;
             transition: background-color 0.2s;
         }
         #albumList li:last-child { border-bottom: none; }
         #albumList li:hover { background-color: var(--bg-secondary-color); }
         #albumList li input[type="checkbox"] { margin-right: 10px; transform: scale(1.2); accent-color: var(--accent-color); flex-shrink: 0; }
-        .album-item-details { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; } /* Allow details to take space and hide overflow */
+        .album-item-details { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
         .album-item-title { font-weight: bold; color: var(--text-color); }
         
         .album-item-desc {
             font-size: 0.9em;
             color: var(--text-secondary-color);
             margin-top: 3px;
-            white-space: normal; /* Allow wrapping */
+            white-space: normal;
             word-break: break-word;
-            /* CSS for initial truncation to N lines */
             display: -webkit-box;
-            -webkit-line-clamp: 2; /* Show 2 lines initially */
+            -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-height: 3.6em; /* fallback for browsers not supporting -webkit-line-clamp, approx 2 lines for 0.9em font */
+            max-height: 3.6em;
             transition: max-height 0.3s ease-out, -webkit-line-clamp 0.3s ease-out;
         }
 
         .album-item-desc.expanded {
-            -webkit-line-clamp: unset; /* Remove line clamping */
-            max-height: 500px; /* Allow it to grow */
-            white-space: pre-wrap; /* Preserve newlines from original description in expanded view */
-            display: block; /* Override -webkit-box for full content display */
+            -webkit-line-clamp: unset;
+            max-height: 500px;
+            white-space: pre-wrap;
+            display: block;
         }
 
         .album-item-count { font-size: 0.8em; color: var(--text-secondary-color); margin-left: auto; padding-left: 10px; flex-shrink: 0;}
@@ -266,7 +277,7 @@
             display: block;
             margin-left: auto;
             margin-right: auto;
-            cursor: pointer; /* For lightbox */
+            cursor: pointer;
             transition: border-color 0.3s, background-color 0.3s;
         }
         .image-pane .filename { margin-top: 8px; font-size: 0.85em; color: var(--text-secondary-color); word-break: break-all; min-height: 2.5em;}
@@ -305,10 +316,10 @@
             width: 100%;
             height: 100%;
             background-color: var(--lightbox-bg);
-            display: none; /* Hidden by default */
+            display: none; 
             align-items: center;
             justify-content: center;
-            z-index: 1001; /* Higher than theme toggle */
+            z-index: 1001; 
             padding: 20px; 
             box-sizing: border-box;
         }
@@ -358,7 +369,7 @@
             justify-content: center;
             transition: background-color 0.2s;
             user-select: none;
-            z-index: 10; /* Above lightbox image container */
+            z-index: 10; 
         }
         .lightbox-close:hover, .lightbox-nav:hover { background-color: var(--lightbox-nav-hover-bg); }
 
@@ -407,63 +418,126 @@
             text-overflow: ellipsis;
             z-index: 10;
         }
-
         .lightbox-key-legend {
             position: absolute;
-            top: 15px; /* Align with close button, opposite side */
+            top: 15px; 
             left: 15px;
             background-color: var(--lightbox-nav-bg);
             color: var(--button-text-color);
             padding: 10px 15px;
             border-radius: 8px;
-            font-size: 0.8em; /* Slightly smaller font for the legend */
-            z-index: 10; /* Same level as other controls */
-            max-width: 220px; /* Adjust as needed */
-            opacity: 0.85; /* Slightly transparent */
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow for depth */
+            font-size: 0.8em; 
+            z-index: 10; 
+            max-width: 220px; 
+            opacity: 0.85; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
             user-select: none;
         }
         .lightbox-key-legend h4 {
             margin-top: 0;
             margin-bottom: 8px;
-            font-size: 1.1em; /* Relative to legend's font size */
+            font-size: 1.1em; 
             text-align: left;
             border-bottom: 1px solid rgba(255,255,255,0.15);
             padding-bottom: 5px;
             font-weight: 600;
         }
-        .lightbox-key-legend ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .lightbox-key-legend li {
-            margin-bottom: 4px; /* Space between items */
-            display: flex;
-            align-items: center; /* Align kbd and text nicely */
-        }
-        .lightbox-key-legend li:last-child {
-            margin-bottom: 0;
-        }
+        .lightbox-key-legend ul { list-style: none; padding: 0; margin: 0; }
+        .lightbox-key-legend li { margin-bottom: 4px; display: flex; align-items: center; }
+        .lightbox-key-legend li:last-child { margin-bottom: 0; }
         .lightbox-key-legend kbd {
             display: inline-block;
-            background-color: rgba(0,0,0,0.4); /* Darker background for keycaps */
-            color: var(--button-text-color); /* Ensure text color matches */
+            background-color: rgba(0,0,0,0.4); 
+            color: var(--button-text-color); 
             padding: 2px 7px;
             border-radius: 4px;
             border: 1px solid rgba(255,255,255,0.2);
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; /* Monospace font for keys */
-            font-size: 0.95em; /* Relative to li's font size */
-            margin-right: 10px; /* Space between kbd and its description */
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; 
+            font-size: 0.95em; 
+            margin-right: 10px; 
             text-align: center;
-            min-width: 15px; /* Ensures single character keys have some width */
+            min-width: 15px; 
+        }
+        /* --- API KEY MODAL STYLES --- */
+        .api-key-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--modal-overlay-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000; /* Highest z-index */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .api-key-modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .api-key-modal-content {
+            background-color: var(--bg-color);
+            padding: 30px 40px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px var(--box-shadow-color);
+            text-align: center;
+            width: 90%;
+            max-width: 450px;
+            color: var(--text-color);
+        }
+        .api-key-modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--text-color); /* Ensure h2 color inherits correctly */
+        }
+        .api-key-modal-content p {
+            margin-bottom: 20px;
+            font-size: 0.95em;
+            color: var(--text-secondary-color);
+        }
+        .api-key-modal-content .form-group {
+            margin-bottom: 20px;
+            text-align: left; /* Align label and input correctly */
+        }
+        /* Input style is covered by general .form-group input */
+        .api-key-modal-content .form-button {
+            width: 100%; /* Make button full width */
+            padding: 12px 20px;
+            margin-top: 10px; /* Space above button */
+            background-color: var(--accent-color); /* Use accent color for unlock */
+        }
+        .api-key-modal-content .form-button:hover {
+            background-color: var(--accent-hover-color);
+        }
+        .api-key-modal-content .status-message {
+            margin-top: 15px;
+            min-height: 1.2em; /* Prevent layout jumps */
         }
     </style>
 </head>
 <body>
     <button id="themeToggleButton" title="Toggle Theme">🌓</button>
 
-    <div class="container">
+    <!-- API Key Modal -->
+    <div id="apiKeyModalOverlay" class="api-key-modal-overlay">
+        <div class="api-key-modal-content">
+            <h2>Enter API Key</h2>
+            <p>Please provide your restdb.io API key to use this application.</p>
+            <div class="form-group">
+                <label for="apiKeyInput">API Key:</label>
+                <input type="password" id="apiKeyInput" placeholder="Enter your API key">
+            </div>
+            <button id="submitApiKeyBtn" class="form-button">Unlock Application</button>
+            <div id="apiKeyStatusMsg" class="status-message"></div>
+            <div id="apiKeyLoadingSpinner" class="loading-spinner" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div class="container content-locked">
         <h1>Batch Image Comparer</h1>
 
         <div class="tab-navigation">
@@ -536,13 +610,7 @@ https://another-host.com/pic.png" required></textarea>
 
     <div id="lightboxOverlay" class="lightbox-overlay">
         <div class="lightbox-content">
-            <span id="lightboxCaption" class="lightbox-caption">Image Title</span>
-            <button id="lightboxClose" class="lightbox-close" title="Close (Esc)">×</button>
-            <button id="lightboxPrev" class="lightbox-nav lightbox-prev" title="Previous Image (Left Arrow)">❮</button>
-            <button id="lightboxNext" class="lightbox-nav lightbox-next" title="Next Image (Right Arrow)">❯</button>
-
-            <!-- NEW: Keyboard Shortcuts Legend Panel -->
-            <div id="lightboxKeyLegend" class="lightbox-key-legend">
+             <div id="lightboxKeyLegend" class="lightbox-key-legend">
                 <h4>Keyboard Shortcuts</h4>
                 <ul>
                     <li><kbd>Esc</kbd> Close</li>
@@ -555,8 +623,10 @@ https://another-host.com/pic.png" required></textarea>
                     <li><kbd>Drag</kbd> Move (Zoomed)</li>
                 </ul>
             </div>
-            <!-- END NEW -->
-
+            <span id="lightboxCaption" class="lightbox-caption">Image Title</span>
+            <button id="lightboxClose" class="lightbox-close" title="Close (Esc)">×</button>
+            <button id="lightboxPrev" class="lightbox-nav lightbox-prev" title="Previous Image (Left Arrow)">❮</button>
+            <button id="lightboxNext" class="lightbox-nav lightbox-next" title="Next Image (Right Arrow)">❯</button>
             <div class="lightbox-image-container">
                 <img id="lightboxImage" class="lightbox-image" src="#" alt="Lightbox Image">
             </div>
@@ -570,9 +640,17 @@ https://another-host.com/pic.png" required></textarea>
     </div>
 
     <script>
-        const API_KEY = '681de6c372702c663ab3d4e9';
+        // const API_KEY = '681de6c372702c663ab3d4e9'; // REMOVED - DO NOT HARDCODE API KEY
+        let userApiKey = null; // Will be set after validation
         const DB_URL = 'https://batchimagecomparer-1d67.restdb.io/rest/albums';
         const MAX_SELECTED_ALBUMS = 3;
+
+        const mainContainer = document.querySelector('.container');
+        const apiKeyModalOverlay = document.getElementById('apiKeyModalOverlay');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const submitApiKeyBtn = document.getElementById('submitApiKeyBtn');
+        const apiKeyStatusMsg = document.getElementById('apiKeyStatusMsg');
+        const apiKeyLoadingSpinner = document.getElementById('apiKeyLoadingSpinner');
 
         const themeToggleButton = document.getElementById('themeToggleButton');
         const tabButtons = document.querySelectorAll('.tab-button');
@@ -622,9 +700,111 @@ https://another-host.com/pic.png" required></textarea>
         let lightboxCurrentImagePaneIndex = 0;
         let lightboxDragStartX, lightboxDragStartY;
         let lightboxIsDragging = false;
-        let lightboxImgInitialX = 0; // Store initial translation for relative dragging
+        let lightboxImgInitialX = 0; 
         let lightboxImgInitialY = 0;
 
+        let lastKnownMouseX = 0;
+        let lastKnownMouseY = 0;
+        let animationFrameRequested = false;
+
+        // --- API Key Modal Logic ---
+        function showApiKeyModal() {
+            mainContainer.classList.add('content-locked');
+            apiKeyModalOverlay.classList.add('active');
+            apiKeyInput.focus();
+        }
+
+        function hideApiKeyModal() {
+            apiKeyModalOverlay.classList.remove('active');
+            mainContainer.classList.remove('content-locked');
+        }
+
+        async function validateApiKey(keyToTest, isFromStorage = false) {
+            apiKeyStatusMsg.textContent = '';
+            apiKeyStatusMsg.className = 'status-message';
+            apiKeyLoadingSpinner.style.display = 'block';
+            submitApiKeyBtn.disabled = true;
+
+            // Use a lightweight request for validation, e.g., fetching metadata or a small query
+            const validationUrl = DB_URL + '?metafields=count'; // Fetches only the count of records
+
+            try {
+                const response = await fetch(validationUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-apikey': keyToTest,
+                        'cache-control': 'no-cache'
+                    }
+                });
+
+                if (response.ok) {
+                    userApiKey = keyToTest;
+                    localStorage.setItem('userProvidedApiKey', keyToTest);
+                    apiKeyStatusMsg.textContent = 'API Key validated successfully!';
+                    apiKeyStatusMsg.className = 'status-message status-success';
+                    setTimeout(() => {
+                        hideApiKeyModal();
+                        initializeAppLogic(); // Initialize the main app features
+                    }, 500); // Short delay to show success message
+                } else {
+                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                    throw new Error(`Validation failed: ${response.status} - ${errorData.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('API Key Validation Error:', error);
+                apiKeyStatusMsg.textContent = `Invalid API Key. ${error.message.includes('NetworkError') || error.message.includes('Failed to fetch') ? 'Network error or CORS issue.' : error.message.replace('Validation failed: ', '')}. Please try again.`;
+                apiKeyStatusMsg.className = 'status-message status-error';
+                if (isFromStorage) {
+                    localStorage.removeItem('userProvidedApiKey'); // Remove bad stored key
+                }
+                userApiKey = null;
+                if (!apiKeyModalOverlay.classList.contains('active')) { // Ensure modal is shown if validation of stored key fails
+                    showApiKeyModal();
+                }
+            } finally {
+                apiKeyLoadingSpinner.style.display = 'none';
+                submitApiKeyBtn.disabled = false;
+            }
+        }
+
+        submitApiKeyBtn.addEventListener('click', () => {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                validateApiKey(key);
+            } else {
+                apiKeyStatusMsg.textContent = 'Please enter an API Key.';
+                apiKeyStatusMsg.className = 'status-message status-error';
+            }
+        });
+
+        apiKeyInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                submitApiKeyBtn.click();
+            }
+        });
+
+
+        function checkAndPromptForApiKey() {
+            const storedApiKey = localStorage.getItem('userProvidedApiKey');
+            if (storedApiKey) {
+                validateApiKey(storedApiKey, true); // Validate stored key silently
+            } else {
+                showApiKeyModal();
+            }
+        }
+
+        // --- Main App Initialization ---
+        function initializeAppLogic() {
+            // Only fetch albums etc. after API key is confirmed
+            if (document.querySelector('.tab-button.active').dataset.tab === 'compareTab' && allAlbums.length === 0) {
+                 fetchAlbums();
+            }
+            updateComparisonDisplay(); // Initial setup for comparison view
+        }
+
+
+        // --- THEME ---
         function applyTheme(theme) {
             if (theme === 'dark') {
                 document.body.classList.add('dark-theme');
@@ -645,35 +825,61 @@ https://another-host.com/pic.png" required></textarea>
         }
         themeToggleButton.addEventListener('click', toggleTheme);
 
+        // --- TABS ---
         tabButtons.forEach(button => {
             button.addEventListener('click', () => {
                 tabButtons.forEach(btn => btn.classList.remove('active'));
                 tabContents.forEach(content => content.classList.remove('active'));
                 button.classList.add('active');
                 document.getElementById(button.dataset.tab).classList.add('active');
-                if (button.dataset.tab === 'compareTab' && allAlbums.length === 0) {
+                
+                // If switching to compare tab and albums not loaded yet (and API key is available)
+                if (button.dataset.tab === 'compareTab' && allAlbums.length === 0 && userApiKey) {
                     fetchAlbums();
                 }
             });
         });
-
+        
+        // --- API CALLS ---
         async function apiCall(url, method = 'GET', body = null) {
+            if (!userApiKey) {
+                console.error('API call attempted without a valid API key.');
+                showApiKeyModal(); // Re-prompt if key somehow became null
+                throw new Error('API Key not available. Please provide a valid key.');
+            }
             const options = {
                 method: method,
-                headers: { 'Content-Type': 'application/json', 'x-apikey': API_KEY, 'cache-control': 'no-cache' }
+                headers: { 'Content-Type': 'application/json', 'x-apikey': userApiKey, 'cache-control': 'no-cache' }
             };
             if (body) options.body = JSON.stringify(body);
             try {
                 const response = await fetch(url, options);
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                    if (response.status === 401) { // Unauthorized, likely bad API key
+                        apiKeyStatusMsg.textContent = `API Key seems invalid or has insufficient permissions. Please check your key. (${errorData.message})`;
+                        apiKeyStatusMsg.className = 'status-message status-error';
+                        localStorage.removeItem('userProvidedApiKey');
+                        userApiKey = null;
+                        showApiKeyModal();
+                    }
                     throw new Error(`API Error: ${response.status} - ${errorData.message || 'Unknown error'}`);
                 }
                 return await response.json();
-            } catch (error) { console.error('API Call Failed:', error); throw error; }
+            } catch (error) { 
+                console.error('API Call Failed:', error); 
+                // Potentially show a generic error to the user or re-throw
+                // If it's a network error, the API key modal might not be the right place, but for 401 it is.
+                if (!error.message.includes('API Key not available')) { // Avoid double modal if error is from initial check
+                     // Generic error handling for API calls could go here if needed
+                }
+                throw error; 
+            }
         }
 
+        // --- ALBUM MANAGEMENT ---
         async function fetchAlbums() {
+            if (!userApiKey) { showApiKeyModal(); return; } // Guard
             albumListLoadingMsg.style.display = 'block';
             albumListLoadingMsg.textContent = 'Loading albums...';
             albumListLoadingSpinner.style.display = 'block';
@@ -685,10 +891,14 @@ https://another-host.com/pic.png" required></textarea>
             } catch (error) {
                 albumListLoadingMsg.textContent = `Error loading albums: ${error.message}`;
                 albumListLoadingMsg.style.color = 'var(--error-color)';
+                 if (error.message.includes("401")) { // If fetch fails due to auth during regular operation
+                    // The apiCall itself should handle showing the modal for 401
+                }
             } finally { albumListLoadingSpinner.style.display = 'none'; }
         }
 
         async function createAlbum(albumData) {
+            if (!userApiKey) { showApiKeyModal(); return; } // Guard
             createAlbumStatus.textContent = '';
             createAlbumSpinner.style.display = 'block';
             try {
@@ -703,6 +913,7 @@ https://another-host.com/pic.png" required></textarea>
         }
 
         createAlbumBtn.addEventListener('click', () => {
+            if (!userApiKey) { showApiKeyModal(); return; } // Guard
             const title = albumTitleInput.value.trim();
             const description = albumDescriptionInput.value.trim();
             const urlsText = albumImageUrlsInput.value.trim();
@@ -732,7 +943,7 @@ https://another-host.com/pic.png" required></textarea>
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.checked = selectedAlbumIds.includes(album._id);
-                checkbox.setAttribute('tabindex', '-1'); // Not focusable by tab, li handles focus
+                checkbox.setAttribute('tabindex', '-1');
 
                 const detailsDiv = document.createElement('div');
                 detailsDiv.className = 'album-item-details';
@@ -744,8 +955,8 @@ https://another-host.com/pic.png" required></textarea>
                 const descSpan = document.createElement('span');
                 descSpan.className = 'album-item-desc';
                 const fullDesc = album.description ? album.description : 'No description';
-                descSpan.dataset.fullDescription = fullDesc; // Store original newlines for expanded
-                descSpan.textContent = fullDesc; // CSS will handle initial truncation
+                descSpan.dataset.fullDescription = fullDesc; 
+                descSpan.textContent = fullDesc; 
 
                 const countSpan = document.createElement('span');
                 countSpan.className = 'album-item-count';
@@ -760,15 +971,13 @@ https://another-host.com/pic.png" required></textarea>
 
                 li.addEventListener('click', (event) => {
                     if (event.target.tagName === 'INPUT' && event.target.type === 'checkbox') {
-                         // Checkbox itself was clicked, let its default action (and our handleAlbumSelection) proceed
+                         // Checkbox itself was clicked
                     } else {
-                        // Clicked on li or its children (not the checkbox directly)
-                        checkbox.checked = !checkbox.checked; // Manually toggle checkbox state
+                        checkbox.checked = !checkbox.checked; 
                     }
                     li.setAttribute('aria-selected', checkbox.checked ? 'true' : 'false');
                     handleAlbumSelection(album._id, checkbox.checked);
                     
-                    // Toggle description expansion, but only if the click wasn't on the checkbox itself
                     if (!(event.target.tagName === 'INPUT' && event.target.type === 'checkbox')) {
                          descSpan.classList.toggle('expanded');
                     }
@@ -780,9 +989,9 @@ https://another-host.com/pic.png" required></textarea>
             const listItem = albumListUL.querySelector(`li[data-album-id="${albumId}"]`);
             if (isChecked) {
                 if (selectedAlbumIds.length < MAX_SELECTED_ALBUMS) {
-                    if (!selectedAlbumIds.includes(albumId)) selectedAlbumIds.push(albumId); // Ensure no duplicates
+                    if (!selectedAlbumIds.includes(albumId)) selectedAlbumIds.push(albumId);
                     if (listItem) listItem.setAttribute('aria-selected', 'true');
-                } else if (!selectedAlbumIds.includes(albumId)) { // Trying to add a new one beyond limit
+                } else if (!selectedAlbumIds.includes(albumId)) { 
                     const checkbox = listItem ? listItem.querySelector('input[type="checkbox"]') : null;
                     if (checkbox) checkbox.checked = false;
                     if (listItem) listItem.setAttribute('aria-selected', 'false');
@@ -804,6 +1013,7 @@ https://another-host.com/pic.png" required></textarea>
         }
 
         loadSelectedAlbumsBtn.addEventListener('click', () => {
+            if (!userApiKey) { showApiKeyModal(); return; } // Guard
             imagePanes.forEach(pane => {
                 pane.urls = []; pane.albumData = null; pane.el.classList.remove('active');
                 clearImagePane(pane, 'Select an album');
@@ -828,6 +1038,7 @@ https://another-host.com/pic.png" required></textarea>
             prepareComparison();
         });
 
+        // --- IMAGE COMPARISON & DISPLAY ---
         function getFileNameFromUrl(url) {
             if (!url || typeof url !== 'string') return "Invalid URL";
             try { const path = new URL(url).pathname; const parts = path.split('/'); return decodeURIComponent(parts[parts.length - 1]) || url; }
@@ -878,17 +1089,18 @@ https://another-host.com/pic.png" required></textarea>
                 imageIndicator.textContent = `0 / 0`; prevBtn.disabled = true; nextBtn.disabled = true;
                 let singleAlbumNavPossible = false;
                 activeLoadedPanes.forEach((pane) => {
-                    if (pane.albumData && pane.urls.length > 0 && activeLoadedPanes.filter(p => p.urls && p.urls.length > 0).length === 1) {
-                        setImageForPane(pane, pane.urls[currentPairIndex], imagePanes.indexOf(pane));
+                    const paneGlobalIndex = imagePanes.indexOf(pane);
+                    if (pane.albumData && pane.urls && pane.urls.length > 0 && activeLoadedPanes.filter(p => p.urls && p.urls.length > 0).length === 1) {
+                        setImageForPane(pane, pane.urls[currentPairIndex], paneGlobalIndex);
                         imageIndicator.textContent = `${currentPairIndex + 1} / ${pane.urls.length}`;
                         prevBtn.disabled = currentPairIndex === 0;
-                        nextBtn.disabled = currentPairIndex >= pane.urls.length - 1; // Fix for single album next
+                        nextBtn.disabled = currentPairIndex >= pane.urls.length - 1;
                         singleAlbumNavPossible = true;
                     } else if (pane.albumData && (!pane.urls || pane.urls.length === 0)) { clearImagePane(pane, 'Album has no images');
                     } else if (pane.albumData) { clearImagePane(pane, 'No image for comparison');
                     } else { clearImagePane(pane, 'No album loaded'); }
                 });
-                if (!singleAlbumNavPossible) { prevBtn.disabled = true; nextBtn.disabled = true; }
+                if (!singleAlbumNavPossible) { prevBtn.disabled = true; nextBtn.disabled = true; imageIndicator.textContent = `0 / 0`; }
             }
         }
         prevBtn.addEventListener('click', () => { if (currentPairIndex > 0) { currentPairIndex--; updateComparisonDisplay(); } });
@@ -899,6 +1111,7 @@ https://another-host.com/pic.png" required></textarea>
             if (currentPairIndex < limit - 1) { currentPairIndex++; updateComparisonDisplay(); }
         });
 
+        // --- LIGHTBOX ---
         function openLightbox(paneGlobalIndex, imageIdxInAlbum) {
             lightboxActivePanes = imagePanes.filter(p => p.el.classList.contains('active') && p.urls && p.urls.length > imageIdxInAlbum);
             if (lightboxActivePanes.length === 0) return;
@@ -921,10 +1134,10 @@ https://another-host.com/pic.png" required></textarea>
                 closeLightbox(); return;
             }
             const currentPaneForLightbox = lightboxActivePanes[lightboxCurrentImagePaneIndex];
-            const imageUrl = currentPaneForLightbox.urls[currentPairIndex];
+            const imageUrl = currentPaneForLightbox.urls[currentPairIndex]; // Ensure currentPairIndex is correct for lightbox context
             lightboxImage.src = imageUrl;
             lightboxCaption.textContent = `${currentPaneForLightbox.albumData.title} - ${getFileNameFromUrl(imageUrl)}`;
-            resetLightboxZoomAndPosition();
+            resetLightboxZoomAndPosition(); // Reset zoom/pan for new image
         }
         
         function navigateLightbox(direction) {
@@ -933,24 +1146,23 @@ https://another-host.com/pic.png" required></textarea>
             updateLightboxImage();
         }
 
-        function setLightboxZoom(scale) {
-            lightboxCurrentScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, scale));
-            // Keep current translation if zoomed, otherwise reset
+        function setLightboxZoom(newScale) {
+            lightboxCurrentScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
+            let unscaledX = 0, unscaledY = 0;
             const currentTransform = lightboxImage.style.transform;
-            const match = currentTransform.match(/translate\(([^,]+),([^)]+)\)/);
-            let translateX = 0, translateY = 0;
-            if (match && lightboxCurrentScale > 1) { // Only keep translation if zoomed
-                translateX = parseFloat(match[1]);
-                translateY = parseFloat(match[2]);
+            const translateMatch = currentTransform.match(/translate\(([^p]+)px, ([^p]+)px\)/);
+            if (translateMatch) {
+                unscaledX = parseFloat(translateMatch[1]);
+                unscaledY = parseFloat(translateMatch[2]);
             }
-            lightboxImage.style.transform = `scale(${lightboxCurrentScale}) translate(${translateX}px, ${translateY}px)`;
+            lightboxImage.style.transform = `translate(${unscaledX}px, ${unscaledY}px) scale(${lightboxCurrentScale})`;
             lightboxZoomLevel.textContent = `${Math.round(lightboxCurrentScale * 100)}%`;
             lightboxImage.style.cursor = lightboxCurrentScale > 1 ? 'grab' : 'default';
         }
 
         function resetLightboxZoomAndPosition() {
             lightboxCurrentScale = 1;
-            lightboxImage.style.transform = 'scale(1) translate(0px, 0px)';
+            lightboxImage.style.transform = 'translate(0px, 0px) scale(1)'; 
             lightboxZoomLevel.textContent = '100%';
             lightboxImage.style.cursor = 'default';
         }
@@ -965,33 +1177,21 @@ https://another-host.com/pic.png" required></textarea>
         lightboxOverlay.addEventListener('wheel', handleLightboxWheel, { passive: false });
 
         function handleLightboxWheel(e) {
-            // only when the lightbox is open
-            e.preventDefault();               // stop the page itself from scrolling
-            if (lightboxCurrentScale <= 0) {  // safety
-                resetLightboxZoomAndPosition();
-                return;
-            }
-
-            // e.deltaY < 0 when wheel-up (toward the user), > 0 when wheel-down
-            const direction = e.deltaY < 0 ? 0.5 : -0.5;
-            const newScale = lightboxCurrentScale + direction * ZOOM_STEP;
-
+            e.preventDefault();
+            const zoomFactor = 0.5; 
+            const direction = e.deltaY < 0 ? 1 : -1;
+            const newScale = lightboxCurrentScale + (direction * ZOOM_STEP * zoomFactor);
             setLightboxZoom(newScale);
         }
-
-        let lastKnownMouseX = 0;
-        let lastKnownMouseY = 0;
-        let animationFrameRequested = false;
 
         lightboxImage.addEventListener('mousedown', (e) => {
             if (lightboxCurrentScale <= 1) return;
             lightboxIsDragging = true;
             lightboxImage.classList.add('grabbing');
-            // Get current translation from transform
             const computedStyle = window.getComputedStyle(lightboxImage);
             const transformMatrix = new DOMMatrix(computedStyle.transform);
-            lightboxImgInitialX = transformMatrix.m41;
-            lightboxImgInitialY = transformMatrix.m42;
+            lightboxImgInitialX = transformMatrix.m41; // Unscaled X translation
+            lightboxImgInitialY = transformMatrix.m42; // Unscaled Y translation
             lightboxDragStartX = e.clientX;
             lightboxDragStartY = e.clientY;
             e.preventDefault();
@@ -999,12 +1199,8 @@ https://another-host.com/pic.png" required></textarea>
 
         document.addEventListener('mousemove', (e) => {
             if (!lightboxIsDragging || lightboxCurrentScale <= 1) return;
-            
-            // Store the latest mouse position
             lastKnownMouseX = e.clientX;
             lastKnownMouseY = e.clientY;
-
-            // Request an animation frame to update the transform, if one isn't already pending
             if (!animationFrameRequested) {
                 requestAnimationFrame(updateImageTransformForDrag);
                 animationFrameRequested = true;
@@ -1014,24 +1210,14 @@ https://another-host.com/pic.png" required></textarea>
         function updateImageTransformForDrag() {
             animationFrameRequested = false;
             if (!lightboxIsDragging) return;
-
-            // How far we’ve moved the mouse on screen
             const dxScreen = lastKnownMouseX - lightboxDragStartX;
             const dyScreen = lastKnownMouseY - lightboxDragStartY;
-
-            // Convert that into image–space (undo the scale)
-            const dxImage = dxScreen / lightboxCurrentScale;
-            const dyImage = dyScreen / lightboxCurrentScale;
-
-            // Add it to the *unscaled* initial translation
-            const newX = lightboxImgInitialX + dxImage;
-            const newY = lightboxImgInitialY + dyImage;
-
-            // **Translate first** (in raw px), then scale
-            lightboxImage.style.transform =
-                `translate(${newX}px, ${newY}px) scale(${lightboxCurrentScale})`;
+            // Drag amount needs to be scaled by the inverse of the current image scale
+            // because the translation happens *before* scaling in the transform property
+            const newX = lightboxImgInitialX + dxScreen / lightboxCurrentScale;
+            const newY = lightboxImgInitialY + dyScreen / lightboxCurrentScale;
+            lightboxImage.style.transform = `translate(${newX}px, ${newY}px) scale(${lightboxCurrentScale})`;
         }
-
 
         document.addEventListener('mouseup', () => {
             if (lightboxIsDragging) {
@@ -1039,7 +1225,7 @@ https://another-host.com/pic.png" required></textarea>
                 lightboxImage.classList.remove('grabbing');
             }
         });
-        lightboxOverlay.addEventListener('mouseleave', () => { // Also stop dragging if mouse leaves overlay
+        lightboxOverlay.addEventListener('mouseleave', () => {
             if (lightboxIsDragging) {
                 lightboxIsDragging = false;
                 lightboxImage.classList.remove('grabbing');
@@ -1055,11 +1241,12 @@ https://another-host.com/pic.png" required></textarea>
             if (e.key === '0') resetLightboxZoomAndPosition();
         }
 
+        // --- PAGE LOAD ---
         document.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'dark';
+            const savedTheme = localStorage.getItem('theme') || 'dark'; // Default to dark
             applyTheme(savedTheme);
-            fetchAlbums();
-            updateComparisonDisplay();
+            checkAndPromptForApiKey(); // This will control when initializeAppLogic is called
+            // updateComparisonDisplay(); // Moved to initializeAppLogic
         });
     </script>
 </body>
