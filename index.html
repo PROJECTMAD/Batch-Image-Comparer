@@ -407,6 +407,57 @@
             text-overflow: ellipsis;
             z-index: 10;
         }
+
+        .lightbox-key-legend {
+            position: absolute;
+            top: 15px; /* Align with close button, opposite side */
+            left: 15px;
+            background-color: var(--lightbox-nav-bg);
+            color: var(--button-text-color);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.8em; /* Slightly smaller font for the legend */
+            z-index: 10; /* Same level as other controls */
+            max-width: 220px; /* Adjust as needed */
+            opacity: 0.85; /* Slightly transparent */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow for depth */
+            user-select: none;
+        }
+        .lightbox-key-legend h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 1.1em; /* Relative to legend's font size */
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+            padding-bottom: 5px;
+            font-weight: 600;
+        }
+        .lightbox-key-legend ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .lightbox-key-legend li {
+            margin-bottom: 4px; /* Space between items */
+            display: flex;
+            align-items: center; /* Align kbd and text nicely */
+        }
+        .lightbox-key-legend li:last-child {
+            margin-bottom: 0;
+        }
+        .lightbox-key-legend kbd {
+            display: inline-block;
+            background-color: rgba(0,0,0,0.4); /* Darker background for keycaps */
+            color: var(--button-text-color); /* Ensure text color matches */
+            padding: 2px 7px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.2);
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; /* Monospace font for keys */
+            font-size: 0.95em; /* Relative to li's font size */
+            margin-right: 10px; /* Space between kbd and its description */
+            text-align: center;
+            min-width: 15px; /* Ensures single character keys have some width */
+        }
     </style>
 </head>
 <body>
@@ -489,6 +540,23 @@ https://another-host.com/pic.png" required></textarea>
             <button id="lightboxClose" class="lightbox-close" title="Close (Esc)">×</button>
             <button id="lightboxPrev" class="lightbox-nav lightbox-prev" title="Previous Image (Left Arrow)">❮</button>
             <button id="lightboxNext" class="lightbox-nav lightbox-next" title="Next Image (Right Arrow)">❯</button>
+
+            <!-- NEW: Keyboard Shortcuts Legend Panel -->
+            <div id="lightboxKeyLegend" class="lightbox-key-legend">
+                <h4>Keyboard Shortcuts</h4>
+                <ul>
+                    <li><kbd>Esc</kbd> Close</li>
+                    <li><kbd>←</kbd> Prev Image</li>
+                    <li><kbd>→</kbd> Next Image</li>
+                    <li><kbd>+</kbd> Zoom In</li>
+                    <li><kbd>-</kbd> Zoom Out</li>
+                    <li><kbd>0</kbd> Reset View</li>
+                    <li><kbd>Wheel</kbd> Zoom</li>
+                    <li><kbd>Drag</kbd> Move (Zoomed)</li>
+                </ul>
+            </div>
+            <!-- END NEW -->
+
             <div class="lightbox-image-container">
                 <img id="lightboxImage" class="lightbox-image" src="#" alt="Lightbox Image">
             </div>
