@@ -532,7 +532,7 @@
     <div id="apiKeyModalOverlay" class="api-key-modal-overlay">
         <div class="api-key-modal-content">
             <h2>Setup API Access</h2>
-            <p>Provide your restdb.io API Key and the Database URL endpoint for albums.</p>
+            <p>Provide your REST Database URL endpoint for albums and API Key.</p>
             <div class="form-group">
                 <label for="dbUrlInput">Database URL (Albums Endpoint):</label>
                 <input type="url" id="dbUrlInput" placeholder="e.g., https://your-db.restdb.io/rest/albums">
@@ -773,7 +773,7 @@ https://another-host.com/pic.png" required></textarea>
                 console.error('API Access Validation Error:', error);
                 let userMessage = `Invalid API Key or DB URL. ${error.message.includes('NetworkError') || error.message.includes('Failed to fetch') ? 'Network error or CORS issue.' : error.message.replace('Validation failed: ', '')}. Please check both and try again.`;
                 if (error.message.includes('SyntaxError')) { // Often from trying to parse non-JSON as JSON, can happen with wrong DB URL.
-                    userMessage = `Invalid DB URL format or non-JSON response. Ensure the URL points to a valid restdb.io collection endpoint.`;
+                    userMessage = `Invalid DB URL format or non-JSON response. Ensure the URL points to a valid REST Database collection endpoint.`;
                 }
                 apiKeyStatusMsg.textContent = userMessage;
                 apiKeyStatusMsg.className = 'status-message status-error';
