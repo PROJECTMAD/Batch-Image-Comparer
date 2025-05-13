@@ -29,6 +29,8 @@
             --lightbox-nav-bg: rgba(50,50,50,0.6);
             --lightbox-nav-hover-bg: rgba(80,80,80,0.8);
             --modal-overlay-bg: rgba(0,0,0,0.7);
+            --slider-handle-bg: rgba(255, 255, 255, 0.8);
+            --slider-handle-shadow: rgba(0,0,0,0.5);
         }
 
         body.dark-theme {
@@ -54,6 +56,8 @@
             --lightbox-nav-bg: rgba(30,30,30,0.7);
             --lightbox-nav-hover-bg: rgba(50,50,50,0.9);
             --modal-overlay-bg: rgba(0,0,0,0.8);
+            --slider-handle-bg: rgba(50, 50, 50, 0.8);
+            --slider-handle-shadow: rgba(255,255,255,0.3);
         }
 
         /* --- GENERAL STYLES --- */
@@ -104,7 +108,7 @@
             border-radius: 20px;
             cursor: pointer;
             font-size: 0.9em;
-            z-index: 1050;
+            z-index: 1000; /* Theme toggle below lightbox */
             transition: background-color 0.3s, color 0.3s, border-color 0.3s;
         }
         #themeToggleButton:hover {
@@ -335,12 +339,12 @@
 
         .lightbox-image-container {
             width: 100%;
-            height: calc(100% - 80px); 
+            height: calc(100% - 80px); /* Space for controls */
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden; 
-            position: relative; /* For lightbox spinner positioning */
+            position: relative; /* For lightbox spinner positioning and slider view */
         }
 
         .lightbox-image {
@@ -360,7 +364,6 @@
             transform: translate(-50%, -50%);
             z-index: 1; /* Above image while loading */
         }
-
 
         .lightbox-close, .lightbox-nav {
             position: absolute;
@@ -406,7 +409,8 @@
             cursor: pointer;
             padding: 5px;
         }
-        .lightbox-controls button:hover { opacity: 0.8; }
+        .lightbox-controls button:hover:not(:disabled) { opacity: 0.8; }
+        .lightbox-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
         .lightbox-zoom-level { color: var(--button-text-color); font-size: 0.9em; }
 
         .lightbox-caption {
@@ -466,6 +470,69 @@
             text-align: center;
             min-width: 15px; 
         }
+        /* --- LIGHTBOX SLIDER STYLES --- */
+        #lightboxSliderView {
+            /* display: none; set by JS */
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; /* Will be set to flex by JS when active */
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* Important */
+        }
+        #lightboxSliderContent {
+            position: relative;
+            /* width and height set by JS */
+            box-shadow: 0 0 10px rgba(0,0,0,0.5); /* Optional: to delineate the image area */
+            user-select: none;
+        }
+        .slider-comparison-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; /* Relative to lightboxSliderContent */
+            height: 100%; /* Relative to lightboxSliderContent */
+            object-fit: contain; /* Should be already contained by parent, but good fallback */
+            pointer-events: none; /* So they don't interfere with handle dragging */
+            /* Clip-path will be applied by JS */
+        }
+        .slider-handle {
+            position: absolute;
+            background-color: var(--slider-handle-bg);
+            box-shadow: 0 0 3px var(--slider-handle-shadow);
+            z-index: 15; /* Above slider images */
+            touch-action: none; /* For touch devices */
+        }
+        .slider-handle.vertical {
+            width: 6px;
+            height: 100%;
+            cursor: ew-resize;
+            transform: translateX(-50%); /* Center the handle line */
+        }
+        .slider-handle.horizontal {
+            width: 100%;
+            height: 6px;
+            cursor: ns-resize;
+            transform: translateY(-50%); /* Center the handle line */
+        }
+        .slider-handle::before { /* Grip indicator */
+            content: "";
+            position: absolute;
+            background-color: var(--text-color);
+            opacity: 0.5;
+        }
+        .slider-handle.vertical::before {
+            width: 2px; height: 30px;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+        }
+         .slider-handle.horizontal::before {
+            width: 30px; height: 2px;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+
         /* --- API KEY MODAL STYLES --- */
         .api-key-modal-overlay {
             position: fixed;
@@ -532,7 +599,7 @@
     <div id="apiKeyModalOverlay" class="api-key-modal-overlay">
         <div class="api-key-modal-content">
             <h2>Setup API Access</h2>
-            <p>Provide your REST Database URL endpoint for albums and API Key.</p>
+            <p>Provide your restdb.io API Key and the Database URL endpoint for albums.</p>
             <div class="form-group">
                 <label for="dbUrlInput">Database URL (Albums Endpoint):</label>
                 <input type="url" id="dbUrlInput" placeholder="e.g., https://your-db.restdb.io/rest/albums">
@@ -630,6 +697,7 @@ https://another-host.com/pic.png" required></textarea>
                     <li><kbd>+</kbd> Zoom In</li>
                     <li><kbd>-</kbd> Zoom Out</li>
                     <li><kbd>0</kbd> Reset View</li>
+                    <li><kbd>S</kbd> Toggle Sliders</li>
                     <li><kbd>Wheel</kbd> Zoom</li>
                     <li><kbd>Drag</kbd> Move (Zoomed)</li>
                 </ul>
@@ -638,15 +706,30 @@ https://another-host.com/pic.png" required></textarea>
             <button id="lightboxClose" class="lightbox-close" title="Close (Esc)">×</button>
             <button id="lightboxPrev" class="lightbox-nav lightbox-prev" title="Previous Image (Left Arrow)">❮</button>
             <button id="lightboxNext" class="lightbox-nav lightbox-next" title="Next Image (Right Arrow)">❯</button>
+            
             <div class="lightbox-image-container">
                 <img id="lightboxImage" class="lightbox-image" src="#" alt="Lightbox Image" style="opacity:0;">
                 <div id="lightboxImageSpinner" class="loading-spinner lightbox-image-spinner" style="display:none;"></div>
+
+                <!-- Slider Comparison Elements -->
+                <div id="lightboxSliderView" style="display: none;"> <!-- Managed by JS -->
+                    <div id="lightboxSliderContent"> <!-- This will be sized to the 'contained' image -->
+                        <img id="sliderImg1" class="slider-comparison-image" src="#">
+                        <img id="sliderImg2" class="slider-comparison-image" src="#">
+                        <img id="sliderImg3" class="slider-comparison-image" src="#" style="display:none;">
+                        <div id="sliderHandle1" class="slider-handle" style="display:none;"></div>
+                        <div id="sliderHandle2" class="slider-handle" style="display:none;"></div>
+                    </div>
+                </div>
             </div>
+
             <div class="lightbox-controls">
                 <button id="lightboxZoomOut" title="Zoom Out (-)">−</button>
                 <span id="lightboxZoomLevel" class="lightbox-zoom-level">100%</span>
                 <button id="lightboxZoomIn" title="Zoom In (+)">+</button>
                 <button id="lightboxZoomReset" title="Reset Zoom (0)">⟳</button>
+                <button id="lightboxSliderToggleBtn" title="Toggle Slider Comparison (S)">🎚️</button>
+                <button id="lightboxShareBtn" title="Share Current Comparison (copies link)">🔗</button> 
             </div>
         </div>
     </div>
@@ -691,6 +774,7 @@ https://another-host.com/pic.png" required></textarea>
 
         const lightboxOverlay = document.getElementById('lightboxOverlay');
         const lightboxImage = document.getElementById('lightboxImage');
+        const lightboxImageContainer = document.querySelector('.lightbox-image-container');
         const lightboxImageSpinner = document.getElementById('lightboxImageSpinner');
         const lightboxCaption = document.getElementById('lightboxCaption');
         const lightboxCloseBtn = document.getElementById('lightboxClose');
@@ -700,6 +784,17 @@ https://another-host.com/pic.png" required></textarea>
         const lightboxZoomOutBtn = document.getElementById('lightboxZoomOut');
         const lightboxZoomResetBtn = document.getElementById('lightboxZoomReset');
         const lightboxZoomLevel = document.getElementById('lightboxZoomLevel');
+        const lightboxSliderToggleBtn = document.getElementById('lightboxSliderToggleBtn');
+
+        // Lightbox Slider Elements
+        const lightboxSliderView = document.getElementById('lightboxSliderView');
+        const lightboxSliderContent = document.getElementById('lightboxSliderContent');
+        const sliderImg1 = document.getElementById('sliderImg1');
+        const sliderImg2 = document.getElementById('sliderImg2');
+        const sliderImg3 = document.getElementById('sliderImg3');
+        const sliderHandle1 = document.getElementById('sliderHandle1');
+        const sliderHandle2 = document.getElementById('sliderHandle2');
+        const lightboxShareBtn = document.getElementById('lightboxShareBtn');
 
         let allAlbums = [];
         let selectedAlbumIds = [];
@@ -710,8 +805,8 @@ https://another-host.com/pic.png" required></textarea>
         const ZOOM_STEP = 0.2;
         const MAX_ZOOM = 5;
         const MIN_ZOOM = 0.2;
-        let lightboxActivePanes = [];
-        let lightboxCurrentImagePaneIndex = 0;
+        let lightboxActivePanesForView = []; // Panes used for current lightbox view (single or slider)
+        let lightboxCurrentImagePaneIndex = 0; // Index within lightboxActivePanesForView for single view
         let lightboxDragStartX, lightboxDragStartY;
         let lightboxIsDragging = false;
         let lightboxImgInitialX = 0; 
@@ -720,6 +815,21 @@ https://another-host.com/pic.png" required></textarea>
         let lastKnownMouseX = 0;
         let lastKnownMouseY = 0;
         let animationFrameRequested = false;
+
+        // Slider State
+        let isSliderModeActive = false;
+        let sliderNumImages = 0;
+        let sliderOrientation = 'vertical'; // 'vertical' (sliders move L/R) or 'horizontal' (sliders move U/D)
+        let sliderRenderedWidth = 0;
+        let sliderRenderedHeight = 0;
+        let slider1Percent = 50; // Position as percentage
+        let slider2Percent = 66.67; // Position as percentage
+        let activeSliderHandle = null;
+        let sliderDragStartPos = 0;
+        let sharedAlbumIdsToLoad = null;
+        let sharedIndexToLoad = null;
+        let isProcessingSharedLink = false;
+
 
         // --- API Key Modal Logic ---
         function showApiKeyModal() {
@@ -773,7 +883,7 @@ https://another-host.com/pic.png" required></textarea>
                 console.error('API Access Validation Error:', error);
                 let userMessage = `Invalid API Key or DB URL. ${error.message.includes('NetworkError') || error.message.includes('Failed to fetch') ? 'Network error or CORS issue.' : error.message.replace('Validation failed: ', '')}. Please check both and try again.`;
                 if (error.message.includes('SyntaxError')) { // Often from trying to parse non-JSON as JSON, can happen with wrong DB URL.
-                    userMessage = `Invalid DB URL format or non-JSON response. Ensure the URL points to a valid REST Database collection endpoint.`;
+                    userMessage = `Invalid DB URL format or non-JSON response. Ensure the URL points to a valid restdb.io collection endpoint.`;
                 }
                 apiKeyStatusMsg.textContent = userMessage;
                 apiKeyStatusMsg.className = 'status-message status-error';
@@ -834,10 +944,48 @@ https://another-host.com/pic.png" required></textarea>
 
         // --- Main App Initialization ---
         function initializeAppLogic() {
-            if (document.querySelector('.tab-button.active').dataset.tab === 'compareTab' && allAlbums.length === 0) {
-                 fetchAlbums();
+            const activeTabButton = document.querySelector('.tab-button.active');
+            let currentTab = activeTabButton ? activeTabButton.dataset.tab : 'compareTab';
+
+            if (isProcessingSharedLink && currentTab !== 'compareTab') {
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                const compareTabBtn = document.querySelector('.tab-button[data-tab="compareTab"]');
+                const compareTabContent = document.getElementById('compareTab');
+                if (compareTabBtn) compareTabBtn.classList.add('active');
+                if (compareTabContent) compareTabContent.classList.add('active');
+                currentTab = 'compareTab';
             }
-            updateComparisonDisplay();
+            
+            const loadDataAndFinalize = async () => {
+                if ((currentTab === 'compareTab' || isProcessingSharedLink) && allAlbums.length === 0 && userApiKey && userDbUrl) {
+                    albumListLoadingMsg.style.display = 'block';
+                    albumListLoadingMsg.textContent = 'Loading albums for comparison...';
+                    albumListLoadingSpinner.style.display = 'block';
+                    try {
+                        await fetchAlbums();
+                    } catch (e) {
+                        albumListLoadingMsg.textContent = `Error loading albums: ${e.message}`;
+                        albumListLoadingSpinner.style.display = 'none';
+                    }
+                }
+
+                if (isProcessingSharedLink && sharedAlbumIdsToLoad && sharedIndexToLoad !== null) {
+                    if (allAlbums.length > 0) {
+                        await loadSharedComparison(sharedAlbumIdsToLoad, sharedIndexToLoad);
+                    } else {
+                        const statusElement = document.getElementById('sharedLoadStatus');
+                        if(statusElement) statusElement.textContent = "Error: Could not load albums. Shared comparison cannot be processed.";
+                        console.error("Cannot load shared comparison: allAlbums is empty.");
+                        setTimeout(() => statusElement?.remove(), 5000);
+                        isProcessingSharedLink = false;
+                    }
+                } else {
+                    updateComparisonDisplay();
+                }
+            };
+
+            loadDataAndFinalize();
         }
 
 
@@ -1151,7 +1299,130 @@ https://another-host.com/pic.png" required></textarea>
                 });
                 if (!singleAlbumNavPossible) { prevBtn.disabled = true; nextBtn.disabled = true; imageIndicator.textContent = `0 / 0`; }
             }
+             // Update slider toggle button availability
+            updateSliderToggleButton();
         }
+
+        async function loadSharedComparison(ids, indexToLoad) {
+            const statusElement = document.getElementById('sharedLoadStatus');
+
+            if (!allAlbums || allAlbums.length === 0) {
+                if (statusElement) statusElement.textContent = "Error: Album list is empty. Cannot process shared link.";
+                setTimeout(() => statusElement?.remove(), 5000);
+                isProcessingSharedLink = false;
+                return;
+            }
+
+            // Ensure Compare Tab is active
+            const compareTabBtn = document.querySelector('.tab-button[data-tab="compareTab"]');
+            const compareTabContent = document.getElementById('compareTab');
+            if (!compareTabBtn.classList.contains('active')) {
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                compareTabBtn.classList.add('active');
+                compareTabContent.classList.add('active');
+            }
+            
+            const validSharedAlbumsData = allAlbums.filter(album => ids.includes(album._id));
+            
+            if (validSharedAlbumsData.length === 0) {
+                if (statusElement) statusElement.textContent = "Error: None of the shared albums could be found in the database.";
+                selectionInfo.textContent = "Error: None of the shared albums could be found.";
+                selectionInfo.className = 'status-message status-error';
+                setTimeout(() => {
+                    statusElement?.remove();
+                    selectionInfo.textContent = "";
+                }, 7000);
+                isProcessingSharedLink = false;
+                return;
+            }
+            
+            if (validSharedAlbumsData.length < ids.length) {
+                if (statusElement) statusElement.textContent = "Warning: Some shared albums were not found. Loading available ones.";
+                else { // If status element was removed by a quick API key fix
+                    selectionInfo.textContent = "Warning: Some shared albums were not found. Loading available ones.";
+                    selectionInfo.className = 'status-message status-error';
+                    setTimeout(() => { selectionInfo.textContent = ""; }, 3000);
+                }
+            }
+
+            selectedAlbumIds = validSharedAlbumsData.map(album => album._id);
+            
+            renderAlbumList(); // Update checkboxes based on new selectedAlbumIds
+            updateSelectionInfo();
+
+            // --- Replicate logic from 'loadSelectedAlbumsBtn' click handler ---
+            imagePanes.forEach(pane => {
+                pane.urls = []; pane.albumData = null; pane.el.classList.remove('active');
+                clearImagePane(pane, 'Select an album');
+            });
+
+            let activePaneSetupIndex = 0;
+            selectedAlbumIds.forEach(id => {
+                const albumData = allAlbums.find(a => a._id === id);
+                if (albumData && activePaneSetupIndex < MAX_SELECTED_ALBUMS) {
+                    const pane = imagePanes[activePaneSetupIndex];
+                    pane.urls = albumData.imageUrls || []; 
+                    pane.albumData = albumData;
+                    pane.el.classList.add('active'); 
+                    pane.titleEl.textContent = albumData.title;
+                    activePaneSetupIndex++;
+                }
+            });
+            for (let i = activePaneSetupIndex; i < MAX_SELECTED_ALBUMS; i++) { 
+                imagePanes[i].el.classList.remove('active'); 
+            }
+            
+            prepareComparison(); // Calculates totalComparablePairs etc.
+            // --- End of replicated logic ---
+
+            // Validate the shared index against the loaded albums
+            let maxPossibleIndex = 0;
+            const activePanesWithContent = imagePanes.filter(p => p.albumData && p.urls.length > 0 && p.el.classList.contains('active'));
+
+            if (totalComparablePairs > 0) { // Comparison mode with multiple albums
+                maxPossibleIndex = totalComparablePairs - 1;
+            } else if (activePanesWithContent.length === 1) { // Single album view
+                maxPossibleIndex = activePanesWithContent[0].urls.length - 1;
+            } else { // No images to show
+                maxPossibleIndex = -1; // Indicates no valid index
+            }
+
+            if (indexToLoad >= 0 && indexToLoad <= maxPossibleIndex) {
+                currentPairIndex = indexToLoad;
+                if (statusElement) statusElement.textContent = "Shared comparison loaded successfully!";
+            } else {
+                if (statusElement) statusElement.textContent = `Warning: Shared image index (${indexToLoad + 1}) is out of bounds. Displaying first available image. Max index: ${maxPossibleIndex + 1}`;
+                selectionInfo.textContent = "Warning: Shared image index is out of bounds. Displaying first available image.";
+                selectionInfo.className = 'status-message status-error';
+                currentPairIndex = 0; // Default to first image
+                setTimeout(() => { selectionInfo.textContent = ""; }, 5000);
+            }
+            
+            updateComparisonDisplay(); // Display the images at the (potentially adjusted) currentPairIndex
+
+            if (statusElement) {
+                setTimeout(() => statusElement.remove(), statusElement.textContent.startsWith("Error") ? 7000 : 3000);
+            }
+
+            // Optional: Automatically open the lightbox for the first shared album pane if successfully loaded
+            if (validSharedAlbumsData.length > 0 && maxPossibleIndex >=0 && currentPairIndex <= maxPossibleIndex) {
+                const firstPaneWithSharedAlbum = imagePanes.find(p => 
+                    p.albumData && selectedAlbumIds.includes(p.albumData._id) && p.el.classList.contains('active') && p.urls.length > currentPairIndex
+                );
+                if (firstPaneWithSharedAlbum) {
+                    const paneGlobalIndex = imagePanes.indexOf(firstPaneWithSharedAlbum);
+                    setTimeout(() => { // Short delay to ensure DOM updates from updateComparisonDisplay are flushed
+                        openLightbox(paneGlobalIndex, currentPairIndex);
+                    }, 200);
+                }
+            }
+            
+            isProcessingSharedLink = false; // Clear the flag
+            sharedAlbumIdsToLoad = null; // Clear stored shared data
+            sharedIndexToLoad = null;
+        }
+        
         prevBtn.addEventListener('click', () => { if (currentPairIndex > 0) { currentPairIndex--; updateComparisonDisplay(); } });
         nextBtn.addEventListener('click', () => {
             let limit = totalComparablePairs;
@@ -1162,31 +1433,56 @@ https://another-host.com/pic.png" required></textarea>
 
         // --- LIGHTBOX ---
         function openLightbox(paneGlobalIndex, imageIdxInAlbum) {
-            lightboxActivePanes = imagePanes.filter(p => p.el.classList.contains('active') && p.urls && p.urls.length > imageIdxInAlbum);
-            if (lightboxActivePanes.length === 0) return;
+            // This `lightboxActivePanesForView` will be the source for both single image and slider comparison
+            lightboxActivePanesForView = imagePanes.filter(p => p.el.classList.contains('active') && p.urls && p.urls.length > imageIdxInAlbum);
+            
+            if (lightboxActivePanesForView.length === 0) return;
+
             const startingPane = imagePanes[paneGlobalIndex];
-            lightboxCurrentImagePaneIndex = lightboxActivePanes.indexOf(startingPane);
-            if (lightboxCurrentImagePaneIndex === -1) lightboxCurrentImagePaneIndex = 0;
+            lightboxCurrentImagePaneIndex = lightboxActivePanesForView.indexOf(startingPane);
+            if (lightboxCurrentImagePaneIndex === -1) lightboxCurrentImagePaneIndex = 0; // Fallback if startingPane not in active
             
             lightboxOverlay.classList.add('active');
             document.addEventListener('keydown', handleLightboxKeyPress);
-            resetLightboxZoomAndPosition(); // Call this before updateLightboxImage to ensure transform is reset
-            updateLightboxImage(); // This will handle loading indicator
+            
+            isSliderModeActive = false; // Reset slider mode on open
+            updateLightboxView(); // Decides whether to show single image or (later) slider view
         }
 
         function closeLightbox() {
+            if (isSliderModeActive) toggleSliderComparisonMode(); // Deactivate sliders if active
             lightboxOverlay.classList.remove('active');
             document.removeEventListener('keydown', handleLightboxKeyPress);
             lightboxImage.src = "#"; // Clear image to stop loading if any
             lightboxImageSpinner.style.display = 'none'; // Hide spinner
             lightboxImage.style.opacity = '0'; // Hide image
         }
-
-        function updateLightboxImage() {
-            if (lightboxActivePanes.length === 0 || lightboxCurrentImagePaneIndex < 0 || lightboxCurrentImagePaneIndex >= lightboxActivePanes.length) {
-                closeLightbox(); return;
+        
+        function updateLightboxView() {
+            if (isSliderModeActive) {
+                lightboxImage.style.display = 'none';
+                lightboxImageSpinner.style.display = 'none';
+                lightboxSliderView.style.display = 'flex';
+                setupSliderComparison();
+            } else {
+                lightboxSliderView.style.display = 'none';
+                lightboxImage.style.display = 'block'; // May get hidden by spinner
+                resetLightboxZoomAndPosition();
+                updateLightboxImage();
             }
-            const currentPaneForLightbox = lightboxActivePanes[lightboxCurrentImagePaneIndex];
+            updateLightboxControlsState();
+            updateSliderToggleButton();
+        }
+
+
+        function updateLightboxImage() { // For single image view
+            if (isSliderModeActive || lightboxActivePanesForView.length === 0 || lightboxCurrentImagePaneIndex < 0 || lightboxCurrentImagePaneIndex >= lightboxActivePanesForView.length) {
+                 // If slider mode is active, this function shouldn't be called directly to change image.
+                 // Or, if invalid state for single view, try to close or handle.
+                if (!isSliderModeActive) closeLightbox();
+                return;
+            }
+            const currentPaneForLightbox = lightboxActivePanesForView[lightboxCurrentImagePaneIndex];
             const imageUrl = currentPaneForLightbox.urls[currentPairIndex]; 
             
             lightboxImage.style.opacity = '0'; // Hide image before loading new one
@@ -1208,12 +1504,33 @@ https://another-host.com/pic.png" required></textarea>
         }
         
         function navigateLightbox(direction) {
-            if (lightboxActivePanes.length <= 1) return;
-            lightboxCurrentImagePaneIndex = (lightboxCurrentImagePaneIndex + direction + lightboxActivePanes.length) % lightboxActivePanes.length;
+            if (isSliderModeActive || lightboxActivePanesForView.length <= 1) return;
+            lightboxCurrentImagePaneIndex = (lightboxCurrentImagePaneIndex + direction + lightboxActivePanesForView.length) % lightboxActivePanesForView.length;
             updateLightboxImage();
         }
 
+        function updateLightboxControlsState() {
+            const navDisabled = isSliderModeActive || lightboxActivePanesForView.length <= 1;
+            const navNone = navDisabled ? "none" : "flex";
+            lightboxPrevBtn.disabled = navDisabled;
+            lightboxNextBtn.disabled = navDisabled;
+            lightboxPrevBtn.style.display = navNone;
+            lightboxNextBtn.style.display = navNone;
+
+            const zoomDisabled = isSliderModeActive;
+            lightboxZoomInBtn.disabled = zoomDisabled;
+            lightboxZoomOutBtn.disabled = zoomDisabled;
+            lightboxZoomResetBtn.disabled = zoomDisabled;
+            if (zoomDisabled) lightboxZoomLevel.textContent = 'N/A';
+            else lightboxZoomLevel.textContent = `${Math.round(lightboxCurrentScale * 100)}%`;
+
+            const shareDisabled = isSliderModeActive || lightboxActivePanesForView.length === 0 || imagePanes.filter(p => p.el.classList.contains('active') && p.albumData).length === 0;
+            lightboxShareBtn.disabled = shareDisabled;
+        }
+
+
         function setLightboxZoom(newScale) {
+            if (isSliderModeActive) return;
             lightboxCurrentScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
             let unscaledX = 0, unscaledY = 0;
             const currentTransform = lightboxImage.style.transform;
@@ -1228,6 +1545,7 @@ https://another-host.com/pic.png" required></textarea>
         }
 
         function resetLightboxZoomAndPosition() {
+            if (isSliderModeActive) return;
             lightboxCurrentScale = 1;
             lightboxImage.style.transform = 'translate(0px, 0px) scale(1)'; 
             lightboxZoomLevel.textContent = '100%';
@@ -1240,8 +1558,12 @@ https://another-host.com/pic.png" required></textarea>
         lightboxZoomInBtn.addEventListener('click', () => setLightboxZoom(lightboxCurrentScale + ZOOM_STEP));
         lightboxZoomOutBtn.addEventListener('click', () => setLightboxZoom(lightboxCurrentScale - ZOOM_STEP));
         lightboxZoomResetBtn.addEventListener('click', resetLightboxZoomAndPosition);
+        lightboxShareBtn.addEventListener('click', generateAndCopyShareLink);
 
-        lightboxOverlay.addEventListener('wheel', handleLightboxWheel, { passive: false });
+        lightboxOverlay.addEventListener('wheel', (e) => {
+            if (isSliderModeActive) return;
+            handleLightboxWheel(e)
+        }, { passive: false });
 
         function handleLightboxWheel(e) {
             e.preventDefault();
@@ -1252,7 +1574,7 @@ https://another-host.com/pic.png" required></textarea>
         }
 
         lightboxImage.addEventListener('mousedown', (e) => {
-            if (lightboxCurrentScale <= 1 || lightboxImage.style.opacity === '0') return; // Don't drag if invisible/loading
+            if (isSliderModeActive || lightboxCurrentScale <= 1 || lightboxImage.style.opacity === '0') return; // Don't drag if invisible/loading
             lightboxIsDragging = true;
             lightboxImage.classList.add('grabbing');
             const computedStyle = window.getComputedStyle(lightboxImage);
@@ -1265,6 +1587,7 @@ https://another-host.com/pic.png" required></textarea>
         });
 
         document.addEventListener('mousemove', (e) => {
+            if (isSliderModeActive) { handleSliderDragMove(e); return; }
             if (!lightboxIsDragging || lightboxCurrentScale <= 1) return;
             lastKnownMouseX = e.clientX;
             lastKnownMouseY = e.clientY;
@@ -1279,37 +1602,356 @@ https://another-host.com/pic.png" required></textarea>
             if (!lightboxIsDragging) return;
             const dxScreen = lastKnownMouseX - lightboxDragStartX;
             const dyScreen = lastKnownMouseY - lightboxDragStartY;
-            const newX = lightboxImgInitialX + dxScreen / lightboxCurrentScale;
-            const newY = lightboxImgInitialY + dyScreen / lightboxCurrentScale;
+            const newX = lightboxImgInitialX + dxScreen; // Dragging is 1:1 with mouse, scale doesn't affect dx/dy for translation part
+            const newY = lightboxImgInitialY + dyScreen;
             lightboxImage.style.transform = `translate(${newX}px, ${newY}px) scale(${lightboxCurrentScale})`;
         }
 
-        document.addEventListener('mouseup', () => {
-            if (lightboxIsDragging) {
-                lightboxIsDragging = false;
-                lightboxImage.classList.remove('grabbing');
-            }
-        });
-        lightboxOverlay.addEventListener('mouseleave', () => {
-            if (lightboxIsDragging) {
-                lightboxIsDragging = false;
-                lightboxImage.classList.remove('grabbing');
-            }
-        });
 
+        document.addEventListener('mouseup', (e) => {
+            if (isSliderModeActive) { handleSliderDragEnd(e); return; }
+            if (lightboxIsDragging) {
+                lightboxIsDragging = false;
+                lightboxImage.classList.remove('grabbing');
+            }
+        });
+        // For mouse leaving the window while dragging
+        document.addEventListener('mouseleave', (e) => {
+            if (isSliderModeActive) { if(activeSliderHandle) handleSliderDragEnd(e); return;}
+            if (lightboxIsDragging) {
+                lightboxIsDragging = false;
+                lightboxImage.classList.remove('grabbing');
+            }
+        });
+        
         function handleLightboxKeyPress(e) {
             if (e.key === 'Escape') closeLightbox();
+            
+            if (isSliderModeActive) {
+                if (e.key === 's' || e.key === 'S') toggleSliderComparisonMode();
+                // Other keys are disabled in slider mode for now
+                return;
+            }
+            // else, normal lightbox key handling
             if (e.key === 'ArrowLeft') navigateLightbox(-1);
             if (e.key === 'ArrowRight') navigateLightbox(1);
             if (e.key === '+') setLightboxZoom(lightboxCurrentScale + ZOOM_STEP);
             if (e.key === '-') setLightboxZoom(lightboxCurrentScale - ZOOM_STEP);
             if (e.key === '0') resetLightboxZoomAndPosition();
+            if (e.key === 's' || e.key === 'S') toggleSliderComparisonMode();
         }
+
+        function generateAndCopyShareLink() {
+            if (lightboxActivePanesForView.length === 0) {
+                // This state should ideally not happen if button is properly disabled
+                alert("No active images to share.");
+                return;
+            }
+
+            // Get album IDs from the panes currently active in the lightbox/comparison
+            const albumIdsToShare = imagePanes
+                .filter(p => p.el.classList.contains('active') && p.albumData && p.urls && p.urls.length > currentPairIndex)
+                .map(pane => pane.albumData._id);
+
+            if (albumIdsToShare.length === 0) {
+                alert("Cannot determine albums to share for the current view.");
+                return;
+            }
+            
+            const shareIndex = currentPairIndex;
+
+            const params = new URLSearchParams();
+            params.set('shareAlbums', albumIdsToShare.join(','));
+            params.set('shareIndex', shareIndex.toString());
+
+            // Construct base URL without existing query params or hash
+            const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                const originalText = lightboxShareBtn.innerHTML;
+                lightboxShareBtn.innerHTML = 'Copied!';
+                lightboxShareBtn.disabled = true;
+                setTimeout(() => {
+                    lightboxShareBtn.innerHTML = '🔗'; // Reset to icon
+                    lightboxShareBtn.disabled = false; // Re-enable based on updateLightboxControlsState
+                    updateLightboxControlsState(); // Ensure correct state
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy share link: ', err);
+                prompt("Failed to copy. Please copy this link manually:", shareUrl);
+            });
+        }
+
+        // --- LIGHTBOX SLIDER COMPARISON ---
+        lightboxSliderToggleBtn.addEventListener('click', toggleSliderComparisonMode);
+
+        function updateSliderToggleButton() {
+            const numComparable = lightboxActivePanesForView.filter(p => p.urls && p.urls[currentPairIndex]).length;
+            lightboxSliderToggleBtn.disabled = numComparable < 2;
+            lightboxSliderToggleBtn.innerHTML = isSliderModeActive ? 'Exit Sliders' : '🎚️';
+        }
+
+        function toggleSliderComparisonMode() {
+            const sliderImages = lightboxActivePanesForView.filter(p => p.urls && p.urls[currentPairIndex]);
+            sliderNumImages = sliderImages.length;
+
+            if (sliderNumImages < 2 && !isSliderModeActive) {
+                console.warn("Slider mode requires at least 2 images.");
+                return; 
+            }
+            
+            isSliderModeActive = !isSliderModeActive;
+            updateLightboxView(); // This will call setupSliderComparison if isSliderModeActive is true
+        }
+        
+        async function setupSliderComparison() {
+            lightboxImageSpinner.style.display = 'block'; // Show spinner while setting up sliders
+            
+            const sliderImagePanes = lightboxActivePanesForView.filter(p => p.urls && p.urls[currentPairIndex]);
+            sliderNumImages = sliderImagePanes.length;
+
+            if (sliderNumImages < 2) {
+                console.warn("Cannot setup slider comparison with less than 2 images.");
+                toggleSliderComparisonMode(); // Revert
+                lightboxImageSpinner.style.display = 'none';
+                return;
+            }
+
+            // 1. Determine rendered dimensions based on the first image
+            const firstImageURL = sliderImagePanes[0].urls[currentPairIndex];
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                const containerWidth = lightboxImageContainer.clientWidth;
+                const containerHeight = lightboxImageContainer.clientHeight;
+                const imgAspectRatio = tempImg.naturalWidth / tempImg.naturalHeight;
+                const containerAspectRatio = containerWidth / containerHeight;
+
+                if (imgAspectRatio > containerAspectRatio) { // Image is wider or less tall than container
+                    sliderRenderedWidth = containerWidth;
+                    sliderRenderedHeight = containerWidth / imgAspectRatio;
+                } else { // Image is taller or less wide
+                    sliderRenderedHeight = containerHeight;
+                    sliderRenderedWidth = containerHeight * imgAspectRatio;
+                }
+
+                lightboxSliderContent.style.width = `${sliderRenderedWidth}px`;
+                lightboxSliderContent.style.height = `${sliderRenderedHeight}px`;
+
+                // Determine orientation for sliders
+                sliderOrientation = (sliderRenderedWidth > sliderRenderedHeight) ? 'vertical' : 'horizontal';
+
+                // Load images into slider image elements
+                sliderImg1.src = firstImageURL;
+                sliderImg2.src = sliderImagePanes[1].urls[currentPairIndex];
+                sliderImg1.style.display = 'block';
+                sliderImg2.style.display = 'block';
+
+                if (sliderNumImages === 3) {
+                    sliderImg3.src = sliderImagePanes[2].urls[currentPairIndex];
+                    sliderImg3.style.display = 'block';
+                } else {
+                    sliderImg3.style.display = 'none';
+                    sliderImg3.src = "#";
+                }
+                
+                // Wait for all slider images to load before positioning handles (simplification)
+                // A more robust way would use Promise.all for image.onload
+                Promise.all(
+                    [sliderImg1, sliderImg2, sliderNumImages === 3 ? sliderImg3 : null]
+                    .filter(Boolean)
+                    .map(img => new Promise(resolve => {
+                        if (img.complete) resolve(); else img.onload = img.onerror = resolve;
+                    }))
+                ).then(() => {
+                    initializeSliderHandles();
+                    updateSliderClipping();
+                    lightboxImageSpinner.style.display = 'none';
+                });
+                
+                let captionText = "Comparing: ";
+                sliderImagePanes.forEach((pane, idx) => {
+                    captionText += `${pane.albumData.title}${idx < sliderImagePanes.length -1 ? ' vs ' : ''}`;
+                });
+                lightboxCaption.textContent = captionText;
+
+            };
+            tempImg.onerror = () => {
+                console.error("Failed to load first image for slider dimensions.");
+                lightboxImageSpinner.style.display = 'none';
+                toggleSliderComparisonMode(); // Revert
+            };
+            tempImg.src = firstImageURL;
+        }
+
+        function initializeSliderHandles() {
+            sliderHandle1.style.display = 'block';
+            sliderHandle1.className = `slider-handle ${sliderOrientation}`;
+            
+            if (sliderNumImages === 2) {
+                slider1Percent = 50;
+                sliderHandle2.style.display = 'none';
+            } else if (sliderNumImages === 3) {
+                slider1Percent = 33.33;
+                slider2Percent = 66.67;
+                sliderHandle2.style.display = 'block';
+                sliderHandle2.className = `slider-handle ${sliderOrientation}`;
+            }
+            positionSliderHandles();
+        }
+
+        function positionSliderHandles() {
+            if (sliderOrientation === 'vertical') { // Sliders are vertical lines, move L/R
+                const pos1 = sliderRenderedWidth * (slider1Percent / 100);
+                sliderHandle1.style.left = `${pos1}px`;
+                sliderHandle1.style.top = '0px';
+                if (sliderNumImages === 3) {
+                    const pos2 = sliderRenderedWidth * (slider2Percent / 100);
+                    sliderHandle2.style.left = `${pos2}px`;
+                    sliderHandle2.style.top = '0px';
+                }
+            } else { // Sliders are horizontal lines, move U/D
+                const pos1 = sliderRenderedHeight * (slider1Percent / 100);
+                sliderHandle1.style.top = `${pos1}px`;
+                sliderHandle1.style.left = '0px';
+                if (sliderNumImages === 3) {
+                    const pos2 = sliderRenderedHeight * (slider2Percent / 100);
+                    sliderHandle2.style.top = `${pos2}px`;
+                    sliderHandle2.style.left = '0px';
+                }
+            }
+        }
+
+        function updateSliderClipping() {
+            const s1p = (sliderOrientation === 'vertical' ? sliderRenderedWidth : sliderRenderedHeight) * (slider1Percent / 100);
+            let s2p;
+            if (sliderNumImages === 3) {
+                s2p = (sliderOrientation === 'vertical' ? sliderRenderedWidth : sliderRenderedHeight) * (slider2Percent / 100);
+            }
+
+            if (sliderOrientation === 'vertical') { // Vertical sliders, clip width
+                sliderImg1.style.clipPath = `polygon(0 0, ${s1p}px 0, ${s1p}px 100%, 0 100%)`;
+                if (sliderNumImages === 2) {
+                    sliderImg2.style.clipPath = `polygon(${s1p}px 0, 100% 0, 100% 100%, ${s1p}px 100%)`;
+                } else if (sliderNumImages === 3) {
+                    sliderImg2.style.clipPath = `polygon(${s1p}px 0, ${s2p}px 0, ${s2p}px 100%, ${s1p}px 100%)`;
+                    sliderImg3.style.clipPath = `polygon(${s2p}px 0, 100% 0, 100% 100%, ${s2p}px 100%)`;
+                }
+            } else { // Horizontal sliders, clip height
+                sliderImg1.style.clipPath = `polygon(0 0, 100% 0, 100% ${s1p}px, 0 ${s1p}px)`;
+                if (sliderNumImages === 2) {
+                    sliderImg2.style.clipPath = `polygon(0 ${s1p}px, 100% ${s1p}px, 100% 100%, 0 100%)`;
+                } else if (sliderNumImages === 3) {
+                    sliderImg2.style.clipPath = `polygon(0 ${s1p}px, 100% ${s1p}px, 100% ${s2p}px, 0 ${s2p}px)`;
+                    sliderImg3.style.clipPath = `polygon(0 ${s2p}px, 100% ${s2p}px, 100% 100%, 0 100%)`;
+                }
+            }
+        }
+        
+        [sliderHandle1, sliderHandle2].forEach(handle => {
+            handle.addEventListener('mousedown', handleSliderDragStart);
+            handle.addEventListener('touchstart', handleSliderDragStart, { passive: false });
+        });
+
+        function handleSliderDragStart(e) {
+            if (!isSliderModeActive) return;
+            e.preventDefault(); // Prevent text selection, etc.
+            activeSliderHandle = e.currentTarget;
+            
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+            if (sliderOrientation === 'vertical') {
+                sliderDragStartPos = clientX - activeSliderHandle.getBoundingClientRect().left;
+            } else {
+                sliderDragStartPos = clientY - activeSliderHandle.getBoundingClientRect().top;
+            }
+            // Global listeners for mousemove/mouseup are already set up
+            // For touch, we add them here
+            document.addEventListener('touchmove', handleSliderDragMove, { passive: false });
+            document.addEventListener('touchend', handleSliderDragEnd);
+        }
+
+        function handleSliderDragMove(e) {
+            if (!isSliderModeActive || !activeSliderHandle) return;
+            e.preventDefault();
+
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            const rect = lightboxSliderContent.getBoundingClientRect();
+            let newPercent;
+
+            if (sliderOrientation === 'vertical') {
+                let newX = clientX - rect.left - (activeSliderHandle === sliderHandle1 ? sliderHandle1.offsetWidth / 2 : sliderHandle2.offsetWidth / 2);
+                newX = Math.max(0, Math.min(newX, sliderRenderedWidth));
+                newPercent = (newX / sliderRenderedWidth) * 100;
+
+                if (activeSliderHandle === sliderHandle1) {
+                    if (sliderNumImages === 3) newPercent = Math.min(newPercent, slider2Percent - 1); // Ensure min 1% gap
+                    slider1Percent = Math.max(0, Math.min(100, newPercent));
+                } else { // sliderHandle2
+                    newPercent = Math.max(newPercent, slider1Percent + 1); // Ensure min 1% gap
+                    slider2Percent = Math.max(0, Math.min(100, newPercent));
+                }
+            } else { // horizontal
+                let newY = clientY - rect.top - (activeSliderHandle === sliderHandle1 ? sliderHandle1.offsetHeight / 2 : sliderHandle2.offsetHeight / 2);
+                newY = Math.max(0, Math.min(newY, sliderRenderedHeight));
+                newPercent = (newY / sliderRenderedHeight) * 100;
+
+                if (activeSliderHandle === sliderHandle1) {
+                    if (sliderNumImages === 3) newPercent = Math.min(newPercent, slider2Percent - 1);
+                    slider1Percent = Math.max(0, Math.min(100, newPercent));
+                } else { // sliderHandle2
+                    newPercent = Math.max(newPercent, slider1Percent + 1);
+                    slider2Percent = Math.max(0, Math.min(100, newPercent));
+                }
+            }
+            positionSliderHandles();
+            updateSliderClipping();
+        }
+
+        function handleSliderDragEnd(e) {
+            if (!isSliderModeActive || !activeSliderHandle) return;
+            activeSliderHandle = null;
+            document.removeEventListener('touchmove', handleSliderDragMove);
+            document.removeEventListener('touchend', handleSliderDragEnd);
+        }
+
 
         // --- PAGE LOAD ---
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || 'dark';
             applyTheme(savedTheme);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const albumsParam = urlParams.get('shareAlbums');
+            const indexParam = urlParams.get('shareIndex');
+
+            if (albumsParam && indexParam) {
+                sharedAlbumIdsToLoad = albumsParam.split(',').filter(id => id.trim() !== '');
+                sharedIndexToLoad = parseInt(indexParam, 10);
+                
+                if (sharedAlbumIdsToLoad.length > 0 && !isNaN(sharedIndexToLoad)) {
+                    isProcessingSharedLink = true;
+
+                    const newUrl = window.location.origin + window.location.pathname;
+                    history.replaceState(null, '', newUrl);
+                    
+                    const tempStatus = document.createElement('p');
+                    tempStatus.id = 'sharedLoadStatus';
+                    tempStatus.textContent = 'Attempting to load shared comparison... Please wait for API validation and album loading.';
+                    tempStatus.style.textAlign = 'center';
+                    tempStatus.style.padding = '10px';
+                    tempStatus.style.margin = '10px 0';
+                    tempStatus.style.backgroundColor = 'var(--accent-color)';
+                    tempStatus.style.color = 'var(--button-text-color)';
+                    tempStatus.style.borderRadius = '4px';
+                    document.body.insertBefore(tempStatus, mainContainer); 
+                } else {
+                    sharedAlbumIdsToLoad = null;
+                    sharedIndexToLoad = null;
+                }
+            }
+
             checkAndPromptForApiAccess();
         });
     </script>
