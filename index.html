@@ -430,6 +430,10 @@
             text-overflow: ellipsis;
             z-index: 10;
         }
+        .image-title {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
         .lightbox-key-legend {
             position: absolute;
             top: 15px; 
@@ -599,7 +603,7 @@
     <div id="apiKeyModalOverlay" class="api-key-modal-overlay">
         <div class="api-key-modal-content">
             <h2>Setup API Access</h2>
-            <p>Provide your restdb.io API Key and the Database URL endpoint for albums.</p>
+            <p>Provide your REST Database endpoint URL and API Key.</p>
             <div class="form-group">
                 <label for="dbUrlInput">Database URL (Albums Endpoint):</label>
                 <input type="url" id="dbUrlInput" placeholder="e.g., https://your-db.restdb.io/rest/albums">
@@ -883,7 +887,7 @@ https://another-host.com/pic.png" required></textarea>
                 console.error('API Access Validation Error:', error);
                 let userMessage = `Invalid API Key or DB URL. ${error.message.includes('NetworkError') || error.message.includes('Failed to fetch') ? 'Network error or CORS issue.' : error.message.replace('Validation failed: ', '')}. Please check both and try again.`;
                 if (error.message.includes('SyntaxError')) { // Often from trying to parse non-JSON as JSON, can happen with wrong DB URL.
-                    userMessage = `Invalid DB URL format or non-JSON response. Ensure the URL points to a valid restdb.io collection endpoint.`;
+                    userMessage = `Invalid DB URL format or non-JSON response. Ensure the URL points to a valid REST Database collection endpoint.`;
                 }
                 apiKeyStatusMsg.textContent = userMessage;
                 apiKeyStatusMsg.className = 'status-message status-error';
@@ -1768,11 +1772,23 @@ https://another-host.com/pic.png" required></textarea>
                     lightboxImageSpinner.style.display = 'none';
                 });
                 
-                let captionText = "Comparing: ";
+                lightboxCaption.textContent = '';
+
+                // prefix
+                lightboxCaption.appendChild(document.createTextNode('Comparing: '));
+
                 sliderImagePanes.forEach((pane, idx) => {
-                    captionText += `${pane.albumData.title}${idx < sliderImagePanes.length -1 ? ' vs ' : ''}`;
+                // create a span just for the title
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = pane.albumData.title;
+                titleSpan.classList.add('image-title');
+                lightboxCaption.appendChild(titleSpan);
+
+                // add the “ vs ” separator if not last
+                if (idx < sliderImagePanes.length - 1) {
+                    lightboxCaption.appendChild(document.createTextNode(' vs '));
+                }
                 });
-                lightboxCaption.textContent = captionText;
 
             };
             tempImg.onerror = () => {
