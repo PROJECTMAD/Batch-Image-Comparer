@@ -642,6 +642,7 @@
                 <button id="prevBtn" disabled>« Previous</button>
                 <span id="imageIndicator">0 / 0</span>
                 <button id="nextBtn" disabled>Next »</button>
+                <button id="mainShareBtn" class="form-button" style="margin-left: 15px; background-color: var(--success-color);" title="Share Current Album View" disabled>🔗 Share View</button> <!-- ADDED -->
             </div>
             <div class="image-comparison-area">
                 <div id="imagePane1" class="image-pane">
@@ -679,14 +680,15 @@
                 <div class="form-group">
                     <label for="albumImageUrls">Image URLs (One per line, direct links):</label>
                     <textarea id="albumImageUrlsInput" placeholder="https://i.ibb.co/your-image1.jpg
-https://another-host.com/pic.png" required></textarea>
+https://i.imgur.com/your-image2.jpeg
+https://example.com/your-image3.png" required></textarea>
                 </div>
                 <button id="createAlbumBtn" class="form-button">Create Album</button>
                 <div id="createAlbumStatus" class="status-message"></div>
                 <div id="createAlbumSpinner" class="loading-spinner" style="display:none;"></div>
             </div>
-             <h2>Existing Albums</h2>
-             <p style="text-align:center; color: var(--text-secondary-color);">(Switch to "Compare Albums" tab to refresh and see new albums)</p>
+            <h2>Existing Albums</h2>
+            <p style="text-align:center; color: var(--text-secondary-color);">(New albums will appear in the "Compare Albums" tab automatically.)</p>
         </div>
     </div>
 
@@ -696,8 +698,10 @@ https://another-host.com/pic.png" required></textarea>
                 <h4>Keyboard Shortcuts</h4>
                 <ul>
                     <li><kbd>Esc</kbd> Close</li>
-                    <li><kbd>←</kbd> Prev Image</li>
-                    <li><kbd>→</kbd> Next Image</li>
+                    <li><kbd>←</kbd> Prev Image (in set)</li>
+                    <li><kbd>→</kbd> Next Image (in set)</li>
+                    <li><kbd>Shift</kbd>+<kbd>←</kbd> Prev Image Set</li> <!-- ADDED -->
+                    <li><kbd>Shift</kbd>+<kbd>→</kbd> Next Image Set</li> <!-- ADDED -->
                     <li><kbd>+</kbd> Zoom In</li>
                     <li><kbd>-</kbd> Zoom Out</li>
                     <li><kbd>0</kbd> Reset View</li>
@@ -726,14 +730,15 @@ https://another-host.com/pic.png" required></textarea>
                     </div>
                 </div>
             </div>
-
             <div class="lightbox-controls">
-                <button id="lightboxZoomOut" title="Zoom Out (-)">−</button>
+                <button id="lightboxPrevSetBtn" title="Previous Image Set (Shift + Left Arrow)">⬅️ Prev Set</button>
+                <button id="lightboxZoomOut" title="Zoom Out (-)">➖</button>
                 <span id="lightboxZoomLevel" class="lightbox-zoom-level">100%</span>
-                <button id="lightboxZoomIn" title="Zoom In (+)">+</button>
-                <button id="lightboxZoomReset" title="Reset Zoom (0)">⟳</button>
+                <button id="lightboxZoomIn" title="Zoom In (+)">➕</button>
+                <button id="lightboxZoomReset" title="Reset Zoom (0)">🔄</button>
                 <button id="lightboxSliderToggleBtn" title="Toggle Slider Comparison (S)">🎚️</button>
-                <button id="lightboxShareBtn" title="Share Current Comparison (copies link)">🔗</button> 
+                <button id="lightboxShareBtn" title="Share Current Comparison (copies link)">🔗</button>
+                <button id="lightboxNextSetBtn" title="Next Image Set (Shift + Right Arrow)">Next Set ➡️</button>
             </div>
         </div>
     </div>
@@ -768,6 +773,7 @@ https://another-host.com/pic.png" required></textarea>
         const selectionInfo = document.getElementById('selectionInfo');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
+        const mainShareBtn = document.getElementById('mainShareBtn'); // ADDED
         const imageIndicator = document.getElementById('imageIndicator');
 
         const imagePanes = [
@@ -799,6 +805,8 @@ https://another-host.com/pic.png" required></textarea>
         const sliderHandle1 = document.getElementById('sliderHandle1');
         const sliderHandle2 = document.getElementById('sliderHandle2');
         const lightboxShareBtn = document.getElementById('lightboxShareBtn');
+        const lightboxPrevSetBtn = document.getElementById('lightboxPrevSetBtn'); // ADDED
+        const lightboxNextSetBtn = document.getElementById('lightboxNextSetBtn'); // ADDED
 
         let allAlbums = [];
         let selectedAlbumIds = [];
@@ -833,6 +841,8 @@ https://another-host.com/pic.png" required></textarea>
         let sharedAlbumIdsToLoad = null;
         let sharedIndexToLoad = null;
         let isProcessingSharedLink = false;
+        let sharedInitialSliderMode = false; // ADDED: To store slider mode preference from URL
+        let sharedViewContext = 'main';     // ADDED: To store if lightbox should auto-open ('lightbox' or 'main')
 
 
         // --- API Key Modal Logic ---
@@ -1020,10 +1030,14 @@ https://another-host.com/pic.png" required></textarea>
                 tabButtons.forEach(btn => btn.classList.remove('active'));
                 tabContents.forEach(content => content.classList.remove('active'));
                 button.classList.add('active');
-                document.getElementById(button.dataset.tab).classList.add('active');
+                const newActiveTabContent = document.getElementById(button.dataset.tab);
+                if (newActiveTabContent) newActiveTabContent.classList.add('active');
                 
-                if (button.dataset.tab === 'compareTab' && allAlbums.length === 0 && userApiKey && userDbUrl) {
-                    fetchAlbums();
+                // MODIFIED: Always fetch albums when switching to the 'Compare Albums' tab
+                // to ensure the list is up-to-date after potential changes in 'Manage Albums'.
+                if (button.dataset.tab === 'compareTab' && userApiKey && userDbUrl) {
+                    fetchAlbums(); // This will re-fetch and re-render the album list.
+                                   // selectedAlbumIds will be cleared as part of renderAlbumList.
                 }
             });
         });
@@ -1279,6 +1293,8 @@ https://another-host.com/pic.png" required></textarea>
             const activeLoadedPanes = imagePanes.filter(p => p.albumData && p.el.classList.contains('active'));
             const panesWithImagesForCurrentIndex = activeLoadedPanes.filter(p => p.urls && p.urls.length > currentPairIndex);
 
+            let canShareMainView = false; // ADDED
+
             if (totalComparablePairs > 0 && panesWithImagesForCurrentIndex.length > 0) {
                 imageIndicator.textContent = `${currentPairIndex + 1} / ${totalComparablePairs}`;
                 prevBtn.disabled = currentPairIndex === 0;
@@ -1286,6 +1302,7 @@ https://another-host.com/pic.png" required></textarea>
                 activeLoadedPanes.forEach((pane, index) => {
                      setImageForPane(pane, pane.urls[currentPairIndex], imagePanes.indexOf(pane));
                 });
+                canShareMainView = true; // ADDED
             } else {
                 imageIndicator.textContent = `0 / 0`; prevBtn.disabled = true; nextBtn.disabled = true;
                 let singleAlbumNavPossible = false;
@@ -1297,14 +1314,48 @@ https://another-host.com/pic.png" required></textarea>
                         prevBtn.disabled = currentPairIndex === 0;
                         nextBtn.disabled = currentPairIndex >= pane.urls.length - 1;
                         singleAlbumNavPossible = true;
+                        canShareMainView = true; // ADDED
                     } else if (pane.albumData && (!pane.urls || pane.urls.length === 0)) { clearImagePane(pane, 'Album has no images');
                     } else if (pane.albumData) { clearImagePane(pane, 'No image for comparison');
                     } else { clearImagePane(pane, 'No album loaded'); }
                 });
                 if (!singleAlbumNavPossible) { prevBtn.disabled = true; nextBtn.disabled = true; imageIndicator.textContent = `0 / 0`; }
             }
-             // Update slider toggle button availability
-            updateSliderToggleButton();
+            updateSliderToggleButton(); // For lightbox slider button
+            mainShareBtn.disabled = !canShareMainView; // ADDED: Enable/disable main share button
+        }
+
+        // ADDED FUNCTION for main page sharing
+        function generateAndCopyMainShareLink() {
+            // Use albums that are currently active and loaded in the panes
+            const albumIdsToShare = imagePanes
+                .filter(p => p.el.classList.contains('active') && p.albumData && p.urls && p.urls.length > currentPairIndex)
+                .map(pane => pane.albumData._id);
+
+            if (albumIdsToShare.length === 0) {
+                alert("No active albums with images at the current index to share.");
+                return;
+            }
+            
+            const shareIndex = currentPairIndex;
+            const params = new URLSearchParams();
+            params.set('shareAlbums', albumIdsToShare.join(','));
+            params.set('shareIndex', shareIndex.toString());
+
+            const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                const originalText = mainShareBtn.textContent;
+                mainShareBtn.textContent = 'Copied!';
+                mainShareBtn.disabled = true;
+                setTimeout(() => {
+                    mainShareBtn.textContent = '🔗 Share View';
+                    mainShareBtn.disabled = imageIndicator.textContent === '0 / 0'; // Re-evaluate disable state
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy main share link: ', err);
+                prompt("Failed to copy. Please copy this link manually:", shareUrl);
+            });
         }
 
         async function loadSharedComparison(ids, indexToLoad) {
@@ -1409,22 +1460,25 @@ https://another-host.com/pic.png" required></textarea>
                 setTimeout(() => statusElement.remove(), statusElement.textContent.startsWith("Error") ? 7000 : 3000);
             }
 
-            // Optional: Automatically open the lightbox for the first shared album pane if successfully loaded
-            if (validSharedAlbumsData.length > 0 && maxPossibleIndex >=0 && currentPairIndex <= maxPossibleIndex) {
+            if (sharedViewContext === 'lightbox' && validSharedAlbumsData.length > 0 && maxPossibleIndex >=0 && currentPairIndex <= maxPossibleIndex) {
                 const firstPaneWithSharedAlbum = imagePanes.find(p => 
                     p.albumData && selectedAlbumIds.includes(p.albumData._id) && p.el.classList.contains('active') && p.urls.length > currentPairIndex
                 );
                 if (firstPaneWithSharedAlbum) {
                     const paneGlobalIndex = imagePanes.indexOf(firstPaneWithSharedAlbum);
-                    setTimeout(() => { // Short delay to ensure DOM updates from updateComparisonDisplay are flushed
-                        openLightbox(paneGlobalIndex, currentPairIndex);
+                    setTimeout(() => { 
+                        // Pass the sharedInitialSliderMode as an option
+                        openLightbox(paneGlobalIndex, currentPairIndex, { initialSliderMode: sharedInitialSliderMode });
                     }, 200);
                 }
             }
+            // END MODIFIED
             
-            isProcessingSharedLink = false; // Clear the flag
-            sharedAlbumIdsToLoad = null; // Clear stored shared data
+            isProcessingSharedLink = false; 
+            sharedAlbumIdsToLoad = null; 
             sharedIndexToLoad = null;
+            sharedInitialSliderMode = false; // ADDED: Reset
+            sharedViewContext = 'main';     // ADDED: Reset
         }
         
         prevBtn.addEventListener('click', () => { if (currentPairIndex > 0) { currentPairIndex--; updateComparisonDisplay(); } });
@@ -1435,22 +1489,69 @@ https://another-host.com/pic.png" required></textarea>
             if (currentPairIndex < limit - 1) { currentPairIndex++; updateComparisonDisplay(); }
         });
 
+        // ADDED HELPER FUNCTION
+        function getMaxImageIndex() {
+            const activeLoadedPanes = imagePanes.filter(p => p.albumData && p.el.classList.contains('active'));
+            // Check for images in *any* of the active loaded panes, not just those at currentPairIndex
+            const panesWithAnyImages = activeLoadedPanes.filter(p => p.urls && p.urls.length > 0);
+
+            if (totalComparablePairs > 0) { // Multiple albums in sync for comparison
+                return totalComparablePairs -1;
+            } else if (panesWithAnyImages.length === 1 && panesWithAnyImages[0].urls) { // Single album loaded with images
+                return panesWithAnyImages[0].urls.length -1;
+            }
+            return -1; // No images to navigate sets for
+        }
+
+        // ADDED FUNCTION for lightbox set navigation
+        function navigateImageSet(direction) {
+            const maxIndex = getMaxImageIndex();
+            if (maxIndex === -1) return; // No sets to navigate
+
+            const newIndex = currentPairIndex + direction;
+
+            if (newIndex >= 0 && newIndex <= maxIndex) {
+                currentPairIndex = newIndex;
+                updateComparisonDisplay(); // Update main page display to reflect new currentPairIndex
+                updateLightboxView();    // This will re-render the lightbox (single or slider) for the new set
+            }
+        }
+
         // --- LIGHTBOX ---
-        function openLightbox(paneGlobalIndex, imageIdxInAlbum) {
-            // This `lightboxActivePanesForView` will be the source for both single image and slider comparison
+        function openLightbox(paneGlobalIndex, imageIdxInAlbum, options = {}) {
             lightboxActivePanesForView = imagePanes.filter(p => p.el.classList.contains('active') && p.urls && p.urls.length > imageIdxInAlbum);
             
             if (lightboxActivePanesForView.length === 0) return;
 
             const startingPane = imagePanes[paneGlobalIndex];
             lightboxCurrentImagePaneIndex = lightboxActivePanesForView.indexOf(startingPane);
-            if (lightboxCurrentImagePaneIndex === -1) lightboxCurrentImagePaneIndex = 0; // Fallback if startingPane not in active
+            if (lightboxCurrentImagePaneIndex === -1) lightboxCurrentImagePaneIndex = 0; 
             
             lightboxOverlay.classList.add('active');
             document.addEventListener('keydown', handleLightboxKeyPress);
             
-            isSliderModeActive = false; // Reset slider mode on open
-            updateLightboxView(); // Decides whether to show single image or (later) slider view
+            // MODIFIED: Load and apply view mode preference, considering shared link options
+            const canUseSlider = lightboxActivePanesForView.filter(p => p.urls && p.urls[currentPairIndex]).length >= 2;
+
+            if (options.initialSliderMode && canUseSlider) { // Preference from shared link
+                isSliderModeActive = true;
+                localStorage.setItem('lightboxViewMode', 'slider'); // Persist this choice
+            } else { // Normal open or shared link without slider preference, or slider not possible
+                const preferredMode = localStorage.getItem('lightboxViewMode');
+                if (preferredMode === 'slider' && canUseSlider) {
+                    isSliderModeActive = true;
+                } else {
+                    isSliderModeActive = false;
+                    // If slider was preferred but not possible, or initialSliderMode was true but not possible,
+                    // ensure localStorage reflects 'single' for next manual open.
+                    if ((preferredMode === 'slider' && !canUseSlider) || (options.initialSliderMode && !canUseSlider)) {
+                         localStorage.setItem('lightboxViewMode', 'single');
+                    }
+                }
+            }
+            // END MODIFIED
+
+            updateLightboxView(); 
         }
 
         function closeLightbox() {
@@ -1527,9 +1628,18 @@ https://another-host.com/pic.png" required></textarea>
             lightboxZoomResetBtn.disabled = zoomDisabled;
             if (zoomDisabled) lightboxZoomLevel.textContent = 'N/A';
             else lightboxZoomLevel.textContent = `${Math.round(lightboxCurrentScale * 100)}%`;
-
-            const shareDisabled = isSliderModeActive || lightboxActivePanesForView.length === 0 || imagePanes.filter(p => p.el.classList.contains('active') && p.albumData).length === 0;
+            
+            // MODIFIED: Allow share button in slider mode
+            const shareDisabled = lightboxActivePanesForView.length === 0 || 
+                                  imagePanes.filter(p => p.el.classList.contains('active') && p.albumData).length === 0;
             lightboxShareBtn.disabled = shareDisabled;
+
+            // ADDED: Logic for Set Navigation Buttons
+            const maxImageIdx = getMaxImageIndex();
+            const setNavPossible = maxImageIdx !== -1;
+            lightboxPrevSetBtn.disabled = !setNavPossible || currentPairIndex === 0;
+            lightboxNextSetBtn.disabled = !setNavPossible || currentPairIndex === maxImageIdx;
+            // END ADDED
         }
 
 
@@ -1562,7 +1672,10 @@ https://another-host.com/pic.png" required></textarea>
         lightboxZoomInBtn.addEventListener('click', () => setLightboxZoom(lightboxCurrentScale + ZOOM_STEP));
         lightboxZoomOutBtn.addEventListener('click', () => setLightboxZoom(lightboxCurrentScale - ZOOM_STEP));
         lightboxZoomResetBtn.addEventListener('click', resetLightboxZoomAndPosition);
+        lightboxPrevSetBtn.addEventListener('click', () => navigateImageSet(-1)); // ADDED
+        lightboxNextSetBtn.addEventListener('click', () => navigateImageSet(1));   // ADDED
         lightboxShareBtn.addEventListener('click', generateAndCopyShareLink);
+        mainShareBtn.addEventListener('click', generateAndCopyMainShareLink); // ADDED
 
         lightboxOverlay.addEventListener('wheel', (e) => {
             if (isSliderModeActive) return;
@@ -1631,14 +1744,27 @@ https://another-host.com/pic.png" required></textarea>
         function handleLightboxKeyPress(e) {
             if (e.key === 'Escape') closeLightbox();
             
+            // ADDED: Shift key check for set navigation
+            if (e.shiftKey) {
+                if (e.key === 'ArrowLeft') {
+                    navigateImageSet(-1);
+                    return; // Consume event
+                }
+                if (e.key === 'ArrowRight') {
+                    navigateImageSet(1);
+                    return; // Consume event
+                }
+            }
+            // END ADDED
+
             if (isSliderModeActive) {
                 if (e.key === 's' || e.key === 'S') toggleSliderComparisonMode();
                 // Other keys are disabled in slider mode for now
                 return;
             }
             // else, normal lightbox key handling
-            if (e.key === 'ArrowLeft') navigateLightbox(-1);
-            if (e.key === 'ArrowRight') navigateLightbox(1);
+            if (e.key === 'ArrowLeft') navigateLightbox(-1); // Navigates within a set
+            if (e.key === 'ArrowRight') navigateLightbox(1); // Navigates within a set
             if (e.key === '+') setLightboxZoom(lightboxCurrentScale + ZOOM_STEP);
             if (e.key === '-') setLightboxZoom(lightboxCurrentScale - ZOOM_STEP);
             if (e.key === '0') resetLightboxZoomAndPosition();
@@ -1647,12 +1773,10 @@ https://another-host.com/pic.png" required></textarea>
 
         function generateAndCopyShareLink() {
             if (lightboxActivePanesForView.length === 0) {
-                // This state should ideally not happen if button is properly disabled
                 alert("No active images to share.");
                 return;
             }
 
-            // Get album IDs from the panes currently active in the lightbox/comparison
             const albumIdsToShare = imagePanes
                 .filter(p => p.el.classList.contains('active') && p.albumData && p.urls && p.urls.length > currentPairIndex)
                 .map(pane => pane.albumData._id);
@@ -1667,8 +1791,13 @@ https://another-host.com/pic.png" required></textarea>
             const params = new URLSearchParams();
             params.set('shareAlbums', albumIdsToShare.join(','));
             params.set('shareIndex', shareIndex.toString());
+            params.set('viewContext', 'lightbox'); // ADDED: Indicate this share is from lightbox
 
-            // Construct base URL without existing query params or hash
+            if (isSliderModeActive) { // ADDED: Respect slider mode
+                params.set('sliderMode', 'true');
+            }
+            // END ADDED
+
             const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
 
             navigator.clipboard.writeText(shareUrl).then(() => {
@@ -1676,9 +1805,8 @@ https://another-host.com/pic.png" required></textarea>
                 lightboxShareBtn.innerHTML = 'Copied!';
                 lightboxShareBtn.disabled = true;
                 setTimeout(() => {
-                    lightboxShareBtn.innerHTML = '🔗'; // Reset to icon
-                    lightboxShareBtn.disabled = false; // Re-enable based on updateLightboxControlsState
-                    updateLightboxControlsState(); // Ensure correct state
+                    lightboxShareBtn.innerHTML = '🔗'; 
+                    updateLightboxControlsState(); 
                 }, 2000);
             }).catch(err => {
                 console.error('Failed to copy share link: ', err);
@@ -1696,15 +1824,25 @@ https://another-host.com/pic.png" required></textarea>
         }
 
         function toggleSliderComparisonMode() {
-            const sliderImages = lightboxActivePanesForView.filter(p => p.urls && p.urls[currentPairIndex]);
-            sliderNumImages = sliderImages.length;
+            const sliderImagePanes = lightboxActivePanesForView.filter(p => p.urls && p.urls[currentPairIndex]);
+            sliderNumImages = sliderImagePanes.length;
 
-            if (sliderNumImages < 2 && !isSliderModeActive) {
+            if (sliderNumImages < 2 && !isSliderModeActive) { // Trying to activate slider without enough images
                 console.warn("Slider mode requires at least 2 images.");
+                // Ensure button text is correct if it was clicked to activate
+                lightboxSliderToggleBtn.innerHTML = '🎚️';
+                isSliderModeActive = false; // Explicitly ensure it's false
+                localStorage.setItem('lightboxViewMode', 'single'); // Save fallback
+                updateLightboxControlsState(); // Update button states
                 return; 
             }
             
             isSliderModeActive = !isSliderModeActive;
+            
+            // ADDED: Save preference
+            localStorage.setItem('lightboxViewMode', isSliderModeActive ? 'slider' : 'single');
+            // END ADDED
+
             updateLightboxView(); // This will call setupSliderComparison if isSliderModeActive is true
         }
         
@@ -1941,10 +2079,14 @@ https://another-host.com/pic.png" required></textarea>
             const urlParams = new URLSearchParams(window.location.search);
             const albumsParam = urlParams.get('shareAlbums');
             const indexParam = urlParams.get('shareIndex');
+            const sliderModeParam = urlParams.get('sliderMode'); // ADDED
+            const viewContextParam = urlParams.get('viewContext'); // ADDED
 
             if (albumsParam && indexParam) {
                 sharedAlbumIdsToLoad = albumsParam.split(',').filter(id => id.trim() !== '');
                 sharedIndexToLoad = parseInt(indexParam, 10);
+                sharedInitialSliderMode = sliderModeParam === 'true'; // ADDED: Store boolean
+                sharedViewContext = viewContextParam || 'main';      // ADDED: Default to 'main' if not present
                 
                 if (sharedAlbumIdsToLoad.length > 0 && !isNaN(sharedIndexToLoad)) {
                     isProcessingSharedLink = true;
@@ -1956,15 +2098,13 @@ https://another-host.com/pic.png" required></textarea>
                     tempStatus.id = 'sharedLoadStatus';
                     tempStatus.textContent = 'Attempting to load shared comparison... Please wait for API validation and album loading.';
                     tempStatus.style.textAlign = 'center';
-                    tempStatus.style.padding = '10px';
-                    tempStatus.style.margin = '10px 0';
-                    tempStatus.style.backgroundColor = 'var(--accent-color)';
-                    tempStatus.style.color = 'var(--button-text-color)';
-                    tempStatus.style.borderRadius = '4px';
+                    // ... (rest of tempStatus styling)
                     document.body.insertBefore(tempStatus, mainContainer); 
                 } else {
                     sharedAlbumIdsToLoad = null;
                     sharedIndexToLoad = null;
+                    sharedInitialSliderMode = false; // Reset if params are invalid
+                    sharedViewContext = 'main';      // Reset
                 }
             }
 
