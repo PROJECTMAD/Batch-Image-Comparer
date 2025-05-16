@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="app-version" content="1.1">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Batch Image Comparer (with Albums & Viewer)</title>
     <style>
@@ -620,7 +621,7 @@
 
     <!-- Main Application Container -->
     <div class="container content-locked">
-        <h1>Batch Image Comparer <v1 class="0"></v1></h1>
+        <h1 id="main-title"></h1>
 
         <div class="tab-navigation">
             <button class="tab-button active" data-tab="compareTab">Compare Albums</button>
@@ -744,6 +745,9 @@ https://example.com/your-image3.png" required></textarea>
     </div>
 
     <script>
+        const version = document.querySelector('meta[name="app-version"]').getAttribute('content');
+        document.getElementById('main-title').textContent = `Batch Image Comparer (v${version})`;
+
         let userApiKey = null;
         let userDbUrl = null; // Will be set after validation
         const DEFAULT_DB_URL = 'https://batchimagecomparer-1d67.restdb.io/rest/albums';
