@@ -847,6 +847,7 @@ https://example.com/your-image3.png" required></textarea>
         let isProcessingSharedLink = false;
         let sharedInitialSliderMode = false; // ADDED: To store slider mode preference from URL
         let sharedViewContext = 'main';     // ADDED: To store if lightbox should auto-open ('lightbox' or 'main')
+        let sharedPrimaryAlbumId = null; // ADDED: To store the ID of the album that was primarily in view
 
 
         // --- API Key Modal Logic ---
@@ -1331,20 +1332,26 @@ https://example.com/your-image3.png" required></textarea>
 
         // ADDED FUNCTION for main page sharing
         function generateAndCopyMainShareLink() {
-            // Use albums that are currently active and loaded in the panes
-            const albumIdsToShare = imagePanes
-                .filter(p => p.el.classList.contains('active') && p.albumData && p.urls && p.urls.length > currentPairIndex)
-                .map(pane => pane.albumData._id);
+            const activeComparisonPanes = imagePanes
+                .filter(p => p.el.classList.contains('active') && p.albumData && p.urls && p.urls.length > currentPairIndex);
 
-            if (albumIdsToShare.length === 0) {
+            if (activeComparisonPanes.length === 0) {
                 alert("No active albums with images at the current index to share.");
                 return;
             }
             
+            const albumIdsToShare = activeComparisonPanes.map(pane => pane.albumData._id);
             const shareIndex = currentPairIndex;
+            // For main page share, the "primary" album context is less critical for lightbox opening,
+            // but good to include for consistency if we ever use it. We can use the first album in the current comparison.
+            const primaryAlbumIdForShare = activeComparisonPanes[0].albumData._id;
+
+
             const params = new URLSearchParams();
             params.set('shareAlbums', albumIdsToShare.join(','));
             params.set('shareIndex', shareIndex.toString());
+            params.set('primaryAlbumId', primaryAlbumIdForShare); // ADDED
+            // viewContext defaults to 'main', sliderMode defaults to false, which is correct here.
 
             const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
 
@@ -1362,29 +1369,35 @@ https://example.com/your-image3.png" required></textarea>
             });
         }
 
-        async function loadSharedComparison(ids, indexToLoad) {
+        async function loadSharedComparison(idsFromUrl, indexToLoad) { // Renamed 'ids' to 'idsFromUrl' for clarity
             const statusElement = document.getElementById('sharedLoadStatus');
 
             if (!allAlbums || allAlbums.length === 0) {
                 if (statusElement) statusElement.textContent = "Error: Album list is empty. Cannot process shared link.";
                 setTimeout(() => statusElement?.remove(), 5000);
                 isProcessingSharedLink = false;
+                sharedAlbumIdsToLoad = null; 
+                sharedIndexToLoad = null;
+                sharedInitialSliderMode = false; 
+                sharedViewContext = 'main';
+                sharedPrimaryAlbumId = null;
                 return;
             }
 
             // Ensure Compare Tab is active
             const compareTabBtn = document.querySelector('.tab-button[data-tab="compareTab"]');
             const compareTabContent = document.getElementById('compareTab');
-            if (!compareTabBtn.classList.contains('active')) {
+            if (compareTabBtn && !compareTabBtn.classList.contains('active')) {
                 tabButtons.forEach(btn => btn.classList.remove('active'));
                 tabContents.forEach(content => content.classList.remove('active'));
                 compareTabBtn.classList.add('active');
-                compareTabContent.classList.add('active');
+                if (compareTabContent) compareTabContent.classList.add('active');
             }
             
-            const validSharedAlbumsData = allAlbums.filter(album => ids.includes(album._id));
+            // Filter allAlbums to get data for albums specified in the URL
+            const albumsDataFromUrl = allAlbums.filter(album => idsFromUrl.includes(album._id));
             
-            if (validSharedAlbumsData.length === 0) {
+            if (albumsDataFromUrl.length === 0) {
                 if (statusElement) statusElement.textContent = "Error: None of the shared albums could be found in the database.";
                 selectionInfo.textContent = "Error: None of the shared albums could be found.";
                 selectionInfo.className = 'status-message status-error';
@@ -1393,32 +1406,61 @@ https://example.com/your-image3.png" required></textarea>
                     selectionInfo.textContent = "";
                 }, 7000);
                 isProcessingSharedLink = false;
+                sharedAlbumIdsToLoad = null; 
+                sharedIndexToLoad = null;
+                sharedInitialSliderMode = false; 
+                sharedViewContext = 'main';
+                sharedPrimaryAlbumId = null;
                 return;
             }
             
-            if (validSharedAlbumsData.length < ids.length) {
-                if (statusElement) statusElement.textContent = "Warning: Some shared albums were not found. Loading available ones.";
-                else { // If status element was removed by a quick API key fix
-                    selectionInfo.textContent = "Warning: Some shared albums were not found. Loading available ones.";
-                    selectionInfo.className = 'status-message status-error';
-                    setTimeout(() => { selectionInfo.textContent = ""; }, 3000);
+            if (albumsDataFromUrl.length < idsFromUrl.length) {
+                const message = "Warning: Some shared albums were not found. Loading available ones.";
+                if (statusElement) statusElement.textContent = message;
+                else { 
+                    selectionInfo.textContent = message;
+                    selectionInfo.className = 'status-message status-error'; // Or a warning class if you have one
+                    setTimeout(() => { selectionInfo.textContent = ""; }, 5000);
                 }
             }
 
-            selectedAlbumIds = validSharedAlbumsData.map(album => album._id);
+            // Set selectedAlbumIds based on the order from the URL,
+            // but only using albums that actually exist.
+            selectedAlbumIds = idsFromUrl.map(id => albumsDataFromUrl.find(a => a._id === id))
+                                      .filter(Boolean) // Remove any undefined if an id from URL wasn't found
+                                      .map(album => album._id);
             
+            if (selectedAlbumIds.length === 0) {
+                const errorMsg = "Error: None of the album IDs from the shared link were valid or found.";
+                if (statusElement) statusElement.textContent = errorMsg;
+                selectionInfo.textContent = errorMsg;
+                selectionInfo.className = 'status-message status-error';
+                setTimeout(() => {
+                    statusElement?.remove();
+                    selectionInfo.textContent = "";
+                }, 7000);
+                isProcessingSharedLink = false;
+                sharedAlbumIdsToLoad = null; 
+                sharedIndexToLoad = null;
+                sharedInitialSliderMode = false; 
+                sharedViewContext = 'main';
+                sharedPrimaryAlbumId = null;
+                return;
+            }
+
             renderAlbumList(); // Update checkboxes based on new selectedAlbumIds
             updateSelectionInfo();
 
-            // --- Replicate logic from 'loadSelectedAlbumsBtn' click handler ---
+            // --- Replicate logic from 'loadSelectedAlbumsBtn' click handler, respecting new selectedAlbumIds order ---
             imagePanes.forEach(pane => {
                 pane.urls = []; pane.albumData = null; pane.el.classList.remove('active');
                 clearImagePane(pane, 'Select an album');
             });
 
             let activePaneSetupIndex = 0;
+            // Populate imagePanes strictly in the order of selectedAlbumIds (which now matches idsFromUrl)
             selectedAlbumIds.forEach(id => {
-                const albumData = allAlbums.find(a => a._id === id);
+                const albumData = allAlbums.find(a => a._id === id); // We know it exists
                 if (albumData && activePaneSetupIndex < MAX_SELECTED_ALBUMS) {
                     const pane = imagePanes[activePaneSetupIndex];
                     pane.urls = albumData.imageUrls || []; 
@@ -1428,16 +1470,19 @@ https://example.com/your-image3.png" required></textarea>
                     activePaneSetupIndex++;
                 }
             });
+            // Deactivate any remaining panes if fewer than MAX_SELECTED_ALBUMS were loaded
             for (let i = activePaneSetupIndex; i < MAX_SELECTED_ALBUMS; i++) { 
                 imagePanes[i].el.classList.remove('active'); 
+                clearImagePane(imagePanes[i], 'No album for this slot');
             }
             
-            prepareComparison(); // Calculates totalComparablePairs etc.
+            prepareComparison(); // Calculates totalComparablePairs etc. based on newly ordered active panes
             // --- End of replicated logic ---
 
             // Validate the shared index against the loaded albums
             let maxPossibleIndex = 0;
-            const activePanesWithContent = imagePanes.filter(p => p.albumData && p.urls.length > 0 && p.el.classList.contains('active'));
+            // Active panes for comparison, considering the now potentially re-ordered imagePanes
+            const activePanesWithContent = imagePanes.filter(p => p.el.classList.contains('active') && p.albumData && p.urls.length > 0);
 
             if (totalComparablePairs > 0) { // Comparison mode with multiple albums
                 maxPossibleIndex = totalComparablePairs - 1;
@@ -1451,11 +1496,12 @@ https://example.com/your-image3.png" required></textarea>
                 currentPairIndex = indexToLoad;
                 if (statusElement) statusElement.textContent = "Shared comparison loaded successfully!";
             } else {
-                if (statusElement) statusElement.textContent = `Warning: Shared image index (${indexToLoad + 1}) is out of bounds. Displaying first available image. Max index: ${maxPossibleIndex + 1}`;
-                selectionInfo.textContent = "Warning: Shared image index is out of bounds. Displaying first available image.";
-                selectionInfo.className = 'status-message status-error';
+                const warningMsg = `Warning: Shared image index (${indexToLoad + 1}) is out of bounds for the loaded albums (max: ${maxPossibleIndex + 1}). Displaying first available image.`;
+                if (statusElement) statusElement.textContent = warningMsg;
+                selectionInfo.textContent = warningMsg;
+                selectionInfo.className = 'status-message status-error'; // Or a warning class
                 currentPairIndex = 0; // Default to first image
-                setTimeout(() => { selectionInfo.textContent = ""; }, 5000);
+                setTimeout(() => { selectionInfo.textContent = ""; }, 7000);
             }
             
             updateComparisonDisplay(); // Display the images at the (potentially adjusted) currentPairIndex
@@ -1464,25 +1510,50 @@ https://example.com/your-image3.png" required></textarea>
                 setTimeout(() => statusElement.remove(), statusElement.textContent.startsWith("Error") ? 7000 : 3000);
             }
 
-            if (sharedViewContext === 'lightbox' && validSharedAlbumsData.length > 0 && maxPossibleIndex >=0 && currentPairIndex <= maxPossibleIndex) {
-                const firstPaneWithSharedAlbum = imagePanes.find(p => 
-                    p.albumData && selectedAlbumIds.includes(p.albumData._id) && p.el.classList.contains('active') && p.urls.length > currentPairIndex
+            // Conditional lightbox opening using sharedPrimaryAlbumId
+            if (sharedViewContext === 'lightbox' && selectedAlbumIds.length > 0 && maxPossibleIndex >=0 && currentPairIndex <= maxPossibleIndex) {
+                let paneGlobalIndexToOpen = -1;
+                
+                // Find the pane that corresponds to the sharedPrimaryAlbumId among the *currently active* panes
+                const primaryAlbumPane = imagePanes.find(p => 
+                    p.albumData && 
+                    p.albumData._id === sharedPrimaryAlbumId && 
+                    p.el.classList.contains('active') && // Ensure it's one of the panes we just set up
+                    p.urls.length > currentPairIndex     // And it has an image at the current index
                 );
-                if (firstPaneWithSharedAlbum) {
-                    const paneGlobalIndex = imagePanes.indexOf(firstPaneWithSharedAlbum);
-                    setTimeout(() => { 
-                        // Pass the sharedInitialSliderMode as an option
-                        openLightbox(paneGlobalIndex, currentPairIndex, { initialSliderMode: sharedInitialSliderMode });
-                    }, 200);
+
+                if (primaryAlbumPane) {
+                    paneGlobalIndexToOpen = imagePanes.indexOf(primaryAlbumPane);
+                } else if (activePanesWithContent.length > 0) {
+                    // Fallback: if primaryAlbumId didn't match an active pane (e.g., bad link or album removed),
+                    // open the first *active* pane that has content.
+                    // The activePanesWithContent is already filtered for active and having URLs.
+                    const firstValidActivePane = activePanesWithContent.find(p => p.urls.length > currentPairIndex);
+                    if (firstValidActivePane) {
+                        paneGlobalIndexToOpen = imagePanes.indexOf(firstValidActivePane);
+                    }
+                    if (!primaryAlbumPane) {
+                         console.warn("Shared primaryAlbumId did not match an active pane. Falling back.");
+                    }
+                }
+
+                if (paneGlobalIndexToOpen !== -1) {
+                     setTimeout(() => { 
+                        openLightbox(paneGlobalIndexToOpen, currentPairIndex, { initialSliderMode: sharedInitialSliderMode });
+                    }, 200); // Delay to allow main page DOM to update
+                } else {
+                     console.warn("Could not determine a valid pane to open in lightbox for shared link.");
+                     // Potentially show a message to the user if statusElement is still around
                 }
             }
-            // END MODIFIED
             
+            // Clear all shared link processing flags and stored data
             isProcessingSharedLink = false; 
             sharedAlbumIdsToLoad = null; 
             sharedIndexToLoad = null;
-            sharedInitialSliderMode = false; // ADDED: Reset
-            sharedViewContext = 'main';     // ADDED: Reset
+            sharedInitialSliderMode = false; 
+            sharedViewContext = 'main';
+            sharedPrimaryAlbumId = null;
         }
         
         prevBtn.addEventListener('click', () => { if (currentPairIndex > 0) { currentPairIndex--; updateComparisonDisplay(); } });
@@ -1781,26 +1852,53 @@ https://example.com/your-image3.png" required></textarea>
                 return;
             }
 
-            const albumIdsToShare = imagePanes
+            // Album IDs selected for comparison (these are the panes active on the main page)
+            const albumIdsInComparison = imagePanes
                 .filter(p => p.el.classList.contains('active') && p.albumData && p.urls && p.urls.length > currentPairIndex)
                 .map(pane => pane.albumData._id);
 
-            if (albumIdsToShare.length === 0) {
+            if (albumIdsInComparison.length === 0) {
                 alert("Cannot determine albums to share for the current view.");
                 return;
             }
             
-            const shareIndex = currentPairIndex;
+            const shareIndex = currentPairIndex; // This is the index *within* each album
+            let primaryAlbumIdForShare = null;
+
+            if (isSliderModeActive) {
+                // For slider mode, the "primary" can be considered the first album in the slider
+                if (lightboxActivePanesForView.length > 0 && lightboxActivePanesForView[0].albumData) {
+                    primaryAlbumIdForShare = lightboxActivePanesForView[0].albumData._id;
+                }
+            } else {
+                // For single image view, it's the album of the currently shown lightbox image
+                if (lightboxActivePanesForView.length > 0 && lightboxCurrentImagePaneIndex < lightboxActivePanesForView.length) {
+                    const currentLightboxPane = lightboxActivePanesForView[lightboxCurrentImagePaneIndex];
+                    if (currentLightboxPane && currentLightboxPane.albumData) {
+                        primaryAlbumIdForShare = currentLightboxPane.albumData._id;
+                    }
+                }
+            }
+
+            if (!primaryAlbumIdForShare && albumIdsInComparison.length > 0) {
+                // Fallback if something went wrong, pick the first album in the comparison set
+                primaryAlbumIdForShare = albumIdsInComparison[0];
+            }
+            
+            if (!primaryAlbumIdForShare) {
+                alert("Could not determine primary album for sharing.");
+                return;
+            }
 
             const params = new URLSearchParams();
-            params.set('shareAlbums', albumIdsToShare.join(','));
+            params.set('shareAlbums', albumIdsInComparison.join(',')); // These are the albums in the main comparison
             params.set('shareIndex', shareIndex.toString());
-            params.set('viewContext', 'lightbox'); // ADDED: Indicate this share is from lightbox
+            params.set('viewContext', 'lightbox');
+            params.set('primaryAlbumId', primaryAlbumIdForShare); // ADDED
 
-            if (isSliderModeActive) { // ADDED: Respect slider mode
+            if (isSliderModeActive) {
                 params.set('sliderMode', 'true');
             }
-            // END ADDED
 
             const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
 
@@ -2085,14 +2183,16 @@ https://example.com/your-image3.png" required></textarea>
             const indexParam = urlParams.get('shareIndex');
             const sliderModeParam = urlParams.get('sliderMode'); // ADDED
             const viewContextParam = urlParams.get('viewContext'); // ADDED
+            const primaryAlbumIdParam = urlParams.get('primaryAlbumId'); // ADDED
 
             if (albumsParam && indexParam) {
                 sharedAlbumIdsToLoad = albumsParam.split(',').filter(id => id.trim() !== '');
                 sharedIndexToLoad = parseInt(indexParam, 10);
                 sharedInitialSliderMode = sliderModeParam === 'true'; // ADDED: Store boolean
                 sharedViewContext = viewContextParam || 'main';      // ADDED: Default to 'main' if not present
+                sharedPrimaryAlbumId = primaryAlbumIdParam; // ADDED
                 
-                if (sharedAlbumIdsToLoad.length > 0 && !isNaN(sharedIndexToLoad)) {
+                if (sharedAlbumIdsToLoad.length > 0 && !isNaN(sharedIndexToLoad) && sharedPrimaryAlbumId) {
                     isProcessingSharedLink = true;
 
                     const newUrl = window.location.origin + window.location.pathname;
@@ -2109,6 +2209,7 @@ https://example.com/your-image3.png" required></textarea>
                     sharedIndexToLoad = null;
                     sharedInitialSliderMode = false; // Reset if params are invalid
                     sharedViewContext = 'main';      // Reset
+                    sharedPrimaryAlbumId = null; // Reset
                 }
             }
 
