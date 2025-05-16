@@ -1514,21 +1514,23 @@ https://example.com/your-image3.png" required></textarea>
 
             if (activeComparisonPanes.length === 0) {
                 alert("No active albums with images at the current index to share.");
+                mainShareBtn.innerHTML = '🔗 Share View'; // Reset button text if it was "Copied!"
+                mainShareBtn.disabled = imageIndicator.textContent === '0 / 0';
                 return;
             }
             
             const albumIdsToShare = activeComparisonPanes.map(pane => pane.albumData._id);
             const shareIndex = currentPairIndex;
-            // For main page share, the "primary" album context is less critical for lightbox opening,
-            // but good to include for consistency if we ever use it. We can use the first album in the current comparison.
             const primaryAlbumIdForShare = activeComparisonPanes[0].albumData._id;
 
 
             const params = new URLSearchParams();
             params.set('shareAlbums', albumIdsToShare.join(','));
             params.set('shareIndex', shareIndex.toString());
-            params.set('primaryAlbumId', primaryAlbumIdForShare); // ADDED
-            // viewContext defaults to 'main', sliderMode defaults to false, which is correct here.
+            params.set('primaryAlbumId', primaryAlbumIdForShare); 
+            params.set('viewContext', 'main'); // EXPLICITLY ADDED/CORRECTED for main page shares
+
+            // sliderMode is not relevant for main page share context for auto-opening
 
             const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
 
@@ -1538,11 +1540,16 @@ https://example.com/your-image3.png" required></textarea>
                 mainShareBtn.disabled = true;
                 setTimeout(() => {
                     mainShareBtn.textContent = '🔗 Share View';
-                    mainShareBtn.disabled = imageIndicator.textContent === '0 / 0'; // Re-evaluate disable state
+                    // Re-evaluate disable state based on whether images are loaded
+                    const anyActivePanes = imagePanes.some(p => p.el.classList.contains('active') && p.albumData && p.urls.length > 0);
+                    mainShareBtn.disabled = !anyActivePanes || imageIndicator.textContent === '0 / 0';
                 }, 2000);
             }).catch(err => {
                 console.error('Failed to copy main share link: ', err);
                 prompt("Failed to copy. Please copy this link manually:", shareUrl);
+                mainShareBtn.innerHTML = '🔗 Share View'; // Reset on error
+                const anyActivePanes = imagePanes.some(p => p.el.classList.contains('active') && p.albumData && p.urls.length > 0);
+                mainShareBtn.disabled = !anyActivePanes || imageIndicator.textContent === '0 / 0';
             });
         }
 
