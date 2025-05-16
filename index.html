@@ -595,6 +595,83 @@
             margin-top: 15px;
             min-height: 1.2em;
         }
+
+
+        /* --- FANCY NOTICE STYLES --- */
+        .fancy-notice-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 3000; /* Higher than API key modal, lower than potential future super-modals */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to top */
+            padding-top: 20px; /* Some space from the very top */
+            pointer-events: none; /* Allow clicks to pass through overlay itself */
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-100%);
+            transition: opacity 0.5s ease, visibility 0s linear 0.5s, transform 0.5s ease-out;
+        }
+
+        .fancy-notice-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            transition: opacity 0.5s ease, visibility 0s linear 0s, transform 0.5s ease-in-out;
+        }
+
+        .fancy-notice-content {
+            background-color: var(--accent-color); /* Or choose a specific notice color */
+            color: var(--button-text-color);
+            padding: 15px 30px;
+            border-radius: 0 0 8px 8px; /* Rounded bottom corners */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: 500;
+            max-width: 80%; /* Or 100% if you prefer edge-to-edge text container */
+            pointer-events: auto; /* Enable clicks on the notice content itself */
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .fancy-notice-content .loading-spinner { /* Style for spinner inside notice */
+            width: 24px;
+            height: 24px;
+            border-width: 3px;
+            border-top-color: var(--button-text-color); /* Make spinner contrast with notice bg */
+            margin: 0; /* Reset default margin */
+        }
+        
+        .fancy-notice-content.notice-error {
+            background-color: var(--error-color);
+        }
+
+        .fancy-notice-content.notice-success {
+            background-color: var(--success-color);
+        }
+        
+        .fancy-notice-content.notice-warning {
+            background-color: #ffc107; /* A typical warning yellow, adjust if needed */
+            color: #333; /* Darker text for yellow background */
+        }
+        .fancy-notice-content.notice-warning .loading-spinner {
+             border-top-color: #333;
+        }
+
+
+        @keyframes notice-slide-in {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes notice-slide-out {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-120%); opacity: 0; } /* Slide out a bit further */
+        }
     </style>
 </head>
 <body>
@@ -1008,6 +1085,106 @@ https://example.com/your-image3.png" required></textarea>
         }
 
 
+        // --- FANCY NOTICE HELPERS ---
+        let fancyNoticeElement = null;
+        let fancyNoticeTextElement = null;
+        let fancyNoticeSpinnerElement = null;
+        let fancyNoticeTimeoutId = null;
+
+        function createFancyNotice() {
+            if (fancyNoticeElement) return; // Already created
+
+            fancyNoticeElement = document.createElement('div');
+            fancyNoticeElement.id = 'fancyNoticeOverlay';
+            fancyNoticeElement.className = 'fancy-notice-overlay';
+
+            const content = document.createElement('div');
+            content.className = 'fancy-notice-content';
+            
+            fancyNoticeSpinnerElement = document.createElement('div');
+            fancyNoticeSpinnerElement.className = 'loading-spinner';
+            fancyNoticeSpinnerElement.style.display = 'none'; // Hide by default
+
+            fancyNoticeTextElement = document.createElement('span');
+            fancyNoticeTextElement.id = 'fancyNoticeText';
+
+            content.appendChild(fancyNoticeSpinnerElement);
+            content.appendChild(fancyNoticeTextElement);
+            fancyNoticeElement.appendChild(content);
+            document.body.appendChild(fancyNoticeElement);
+        }
+
+        function showFancyNotice(message, type = 'info', showSpinner = false, duration = null) {
+            createFancyNotice(); // Ensure it exists
+
+            fancyNoticeTextElement.textContent = message;
+            const contentElement = fancyNoticeElement.querySelector('.fancy-notice-content');
+            
+            // Reset classes
+            contentElement.classList.remove('notice-error', 'notice-success', 'notice-warning');
+
+            if (type === 'error') {
+                contentElement.classList.add('notice-error');
+            } else if (type === 'success') {
+                contentElement.classList.add('notice-success');
+            } else if (type === 'warning') {
+                contentElement.classList.add('notice-warning');
+            }
+            // 'info' uses default accent color
+
+            fancyNoticeSpinnerElement.style.display = showSpinner ? 'block' : 'none';
+            
+            fancyNoticeElement.classList.add('visible');
+
+            if (fancyNoticeTimeoutId) {
+                clearTimeout(fancyNoticeTimeoutId);
+            }
+
+            if (duration) {
+                fancyNoticeTimeoutId = setTimeout(() => {
+                    hideFancyNotice();
+                }, duration);
+            }
+        }
+
+        function updateFancyNotice(message, type = 'info', showSpinner = false, duration = null) {
+             if (!fancyNoticeElement || !fancyNoticeElement.classList.contains('visible')) {
+                showFancyNotice(message, type, showSpinner, duration);
+                return;
+            }
+            // If already visible, just update content
+            fancyNoticeTextElement.textContent = message;
+            const contentElement = fancyNoticeElement.querySelector('.fancy-notice-content');
+            contentElement.classList.remove('notice-error', 'notice-success', 'notice-warning');
+             if (type === 'error') contentElement.classList.add('notice-error');
+             else if (type === 'success') contentElement.classList.add('notice-success');
+             else if (type === 'warning') contentElement.classList.add('notice-warning');
+
+            fancyNoticeSpinnerElement.style.display = showSpinner ? 'block' : 'none';
+
+            if (fancyNoticeTimeoutId) clearTimeout(fancyNoticeTimeoutId);
+            if (duration) {
+                fancyNoticeTimeoutId = setTimeout(hideFancyNotice, duration);
+            }
+        }
+
+
+        function hideFancyNotice() {
+            if (fancyNoticeElement) {
+                fancyNoticeElement.classList.remove('visible');
+                 if (fancyNoticeTimeoutId) {
+                    clearTimeout(fancyNoticeTimeoutId);
+                    fancyNoticeTimeoutId = null;
+                }
+                setTimeout(() => {
+                if (!fancyNoticeElement.classList.contains('visible')) {
+                fancyNoticeElement.remove();
+                fancyNoticeElement = null;
+                }
+                }, 600); // A bit longer than CSS transition
+            }
+        }
+
         // --- THEME ---
         function applyTheme(theme) {
             if (theme === 'dark') {
@@ -1370,11 +1547,9 @@ https://example.com/your-image3.png" required></textarea>
         }
 
         async function loadSharedComparison(idsFromUrl, indexToLoad) { // Renamed 'ids' to 'idsFromUrl' for clarity
-            const statusElement = document.getElementById('sharedLoadStatus');
 
             if (!allAlbums || allAlbums.length === 0) {
-                if (statusElement) statusElement.textContent = "Error: Album list is empty. Cannot process shared link.";
-                setTimeout(() => statusElement?.remove(), 5000);
+                updateFancyNotice("Error: Album list is empty. Cannot process shared link.", 'error', false, 7000);
                 isProcessingSharedLink = false;
                 sharedAlbumIdsToLoad = null; 
                 sharedIndexToLoad = null;
@@ -1398,13 +1573,7 @@ https://example.com/your-image3.png" required></textarea>
             const albumsDataFromUrl = allAlbums.filter(album => idsFromUrl.includes(album._id));
             
             if (albumsDataFromUrl.length === 0) {
-                if (statusElement) statusElement.textContent = "Error: None of the shared albums could be found in the database.";
-                selectionInfo.textContent = "Error: None of the shared albums could be found.";
-                selectionInfo.className = 'status-message status-error';
-                setTimeout(() => {
-                    statusElement?.remove();
-                    selectionInfo.textContent = "";
-                }, 7000);
+                updateFancyNotice("Error: None of the shared albums could be found in the database.", 'error', false, 7000);
                 isProcessingSharedLink = false;
                 sharedAlbumIdsToLoad = null; 
                 sharedIndexToLoad = null;
@@ -1415,13 +1584,7 @@ https://example.com/your-image3.png" required></textarea>
             }
             
             if (albumsDataFromUrl.length < idsFromUrl.length) {
-                const message = "Warning: Some shared albums were not found. Loading available ones.";
-                if (statusElement) statusElement.textContent = message;
-                else { 
-                    selectionInfo.textContent = message;
-                    selectionInfo.className = 'status-message status-error'; // Or a warning class if you have one
-                    setTimeout(() => { selectionInfo.textContent = ""; }, 5000);
-                }
+                updateFancyNotice("Warning: Some shared albums were not found. Loading available ones.", 'warning', false, 7000);
             }
 
             // Set selectedAlbumIds based on the order from the URL,
@@ -1431,14 +1594,7 @@ https://example.com/your-image3.png" required></textarea>
                                       .map(album => album._id);
             
             if (selectedAlbumIds.length === 0) {
-                const errorMsg = "Error: None of the album IDs from the shared link were valid or found.";
-                if (statusElement) statusElement.textContent = errorMsg;
-                selectionInfo.textContent = errorMsg;
-                selectionInfo.className = 'status-message status-error';
-                setTimeout(() => {
-                    statusElement?.remove();
-                    selectionInfo.textContent = "";
-                }, 7000);
+                updateFancyNotice("Error: None of the album IDs from the shared link were valid or found.", 'error', false, 7000);
                 isProcessingSharedLink = false;
                 sharedAlbumIdsToLoad = null; 
                 sharedIndexToLoad = null;
@@ -1494,24 +1650,17 @@ https://example.com/your-image3.png" required></textarea>
 
             if (indexToLoad >= 0 && indexToLoad <= maxPossibleIndex) {
                 currentPairIndex = indexToLoad;
-                if (statusElement) statusElement.textContent = "Shared comparison loaded successfully!";
+                updateFancyNotice("Shared comparison loaded successfully!", 'success', false, 3000); // Hide after 3s
             } else {
-                const warningMsg = `Warning: Shared image index (${indexToLoad + 1}) is out of bounds for the loaded albums (max: ${maxPossibleIndex + 1}). Displaying first available image.`;
-                if (statusElement) statusElement.textContent = warningMsg;
-                selectionInfo.textContent = warningMsg;
-                selectionInfo.className = 'status-message status-error'; // Or a warning class
-                currentPairIndex = 0; // Default to first image
-                setTimeout(() => { selectionInfo.textContent = ""; }, 7000);
+                const warningMsg = `Shared image index (${indexToLoad + 1}) is out of bounds (max: ${maxPossibleIndex + 1}). Displaying first image.`;
+                updateFancyNotice(warningMsg, 'warning', false, 7000);
+                currentPairIndex = 0;
             }
             
-            updateComparisonDisplay(); // Display the images at the (potentially adjusted) currentPairIndex
-
-            if (statusElement) {
-                setTimeout(() => statusElement.remove(), statusElement.textContent.startsWith("Error") ? 7000 : 3000);
-            }
+            updateComparisonDisplay();
 
             // Conditional lightbox opening using sharedPrimaryAlbumId
-            if (sharedViewContext === 'lightbox' && selectedAlbumIds.length > 0 && maxPossibleIndex >=0 && currentPairIndex <= maxPossibleIndex) {
+            if (sharedViewContext !== 'lightbox' && !fancyNoticeElement.querySelector('.fancy-notice-content.notice-error')) {
                 let paneGlobalIndexToOpen = -1;
                 
                 // Find the pane that corresponds to the sharedPrimaryAlbumId among the *currently active* panes
@@ -2198,12 +2347,7 @@ https://example.com/your-image3.png" required></textarea>
                     const newUrl = window.location.origin + window.location.pathname;
                     history.replaceState(null, '', newUrl);
                     
-                    const tempStatus = document.createElement('p');
-                    tempStatus.id = 'sharedLoadStatus';
-                    tempStatus.textContent = 'Attempting to load shared comparison... Please wait for API validation and album loading.';
-                    tempStatus.style.textAlign = 'center';
-                    // ... (rest of tempStatus styling)
-                    document.body.insertBefore(tempStatus, mainContainer); 
+                    showFancyNotice('Attempting to load shared comparison...', 'info', true);
                 } else {
                     sharedAlbumIdsToLoad = null;
                     sharedIndexToLoad = null;
