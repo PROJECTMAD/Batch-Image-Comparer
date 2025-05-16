@@ -1667,7 +1667,7 @@ https://example.com/your-image3.png" required></textarea>
             updateComparisonDisplay();
 
             // Conditional lightbox opening using sharedPrimaryAlbumId
-            if (sharedViewContext !== 'lightbox' && !fancyNoticeElement.querySelector('.fancy-notice-content.notice-error')) {
+            if (sharedViewContext === 'lightbox' && !fancyNoticeElement.querySelector('.fancy-notice-content.notice-error')) {
                 let paneGlobalIndexToOpen = -1;
                 
                 // Find the pane that corresponds to the sharedPrimaryAlbumId among the *currently active* panes
