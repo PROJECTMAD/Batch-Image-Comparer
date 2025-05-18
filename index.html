@@ -151,6 +151,7 @@
             margin-bottom: 20px;
             border: 1px solid var(--border-color);
             transition: background-color 0.3s, border-color 0.3s;
+            display: contents;
         }
         .form-group { margin-bottom: 15px; }
         .form-group label {
@@ -285,6 +286,52 @@
             transition: border-color 0.3s, background-color 0.3s, opacity 0.3s;
         }
         .image-pane .filename { margin-top: 8px; font-size: 0.85em; color: var(--text-secondary-color); word-break: break-all; min-height: 2.5em;}
+
+        /* --- CANVAS STYLES --- */
+        .image-comparison-area canvas,
+        .lightbox-image-container canvas { /* General targeting for canvases in these areas */
+            display: block; /* Or inline-block if preferred, but block is common */
+            object-fit: contain; /* This won't directly apply but good for semantic consistency */
+            background-color: transparent; /* Ensure no default bg interferes */
+            transition: opacity 0.4s ease-in-out; /* For smooth fade-in, same as images */
+        }
+
+        /* Ensure canvas within panes specifically gets max dimensions */
+        .image-pane canvas {
+            max-width: 100%;
+            max-height: 350px; /* Same as img in pane */
+            height: auto; /* Allow aspect ratio to determine actual height */
+            margin-left: auto;
+            margin-right: auto;
+            cursor: pointer;
+        }
+
+        /* Lightbox main canvas */
+        #lightboxCanvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* Lightbox carousel side canvases */
+        #carouselPrevCanvas, #carouselNextCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            /* opacity: 0.6; is already handled by class .carousel-side-image if we add it */
+        }
+        /* Add .carousel-side-image class to the side canvases for consistent styling */
+        #carouselPrevCanvas, #carouselNextCanvas {
+            /* opacity: 0.6; */ /* This will be set by JS */
+            /* cursor: pointer; */ /* This will be set by JS */
+        }
+
+
+        /* Lightbox slider canvases */
+        #sliderCanvas1, #sliderCanvas2, #sliderCanvas3 {
+            /* position, opacity, z-index are already inline, but ensure they behave like images */
+            width: 100%; /* Will be sized by lightboxSliderContent */
+            height: 100%; /* Will be sized by lightboxSliderContent */
+        }
+
         .error-placeholder { /* Also used as loading placeholder text */
             display: flex;
             align-items: center;
@@ -777,18 +824,21 @@
                     <h3 id="albumTitle1">Album 1</h3>
                     <div id="img1Placeholder" class="error-placeholder">Select an album</div>
                     <img id="img1" src="#" alt="Image from Album 1" style="display:none;">
+                    <canvas id="canvas1" style="max-width: 100%; max-height: 350px; display: none;"></canvas>
                     <p id="img1Name" class="filename">-</p>
                 </div>
                 <div id="imagePane2" class="image-pane">
                     <h3 id="albumTitle2">Album 2</h3>
                     <div id="img2Placeholder" class="error-placeholder">Select an album</div>
                     <img id="img2" src="#" alt="Image from Album 2" style="display:none;">
+                    <canvas id="canvas2" style="max-width: 100%; max-height: 350px; display: none;"></canvas>
                     <p id="img2Name" class="filename">-</p>
                 </div>
                 <div id="imagePane3" class="image-pane">
                     <h3 id="albumTitle3">Album 3</h3>
                     <div id="img3Placeholder" class="error-placeholder">Select an album</div>
                     <img id="img3" src="#" alt="Image from Album 3" style="display:none;">
+                    <canvas id="canvas3" style="max-width: 100%; max-height: 350px; display: none;"></canvas>
                     <p id="img3Name" class="filename">-</p>
                 </div>
             </div>
@@ -847,17 +897,23 @@ https://example.com/your-image3.png" required></textarea>
                 <div id="lightboxCarousel" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: space-around; position: relative;">
                     <div class="carousel-side-image-container" style="max-width: 20%; max-height: 70%; position: relative; display:flex; align-items:center; justify-content:center;">
                         <div class="skeleton-placeholder" id="carouselPrevImagePlaceholder" style="display:none; position: absolute; width:100%; height:100%; background-color: var(--bg-tertiary-color); z-index:1;"></div>
-                        <img id="carouselPrevImage" class="carousel-side-image" src="#" alt="Previous Image" style="cursor:pointer; opacity:0.6; max-width: 100%; max-height: 100%; object-fit: contain; transition: opacity 0.3s ease-in-out; position:relative; z-index:2;">
-                        <!-- Optional: Add a smaller spinner for side images if desired -->
+                        <img id="carouselPrevImage" class="carousel-side-image" src="#" alt="Previous Image" style="cursor:pointer; opacity:0.6; max-width: 100%; max-height: 100%; object-fit: contain; transition: opacity 0.3s ease-in-out; position:relative; z-index:2; display:none;"> <!-- MODIFIED: Add display:none initially -->
+                        <canvas id="carouselPrevCanvas" class="carousel-side-image" style="cursor:pointer; opacity:0.6; max-width: 100%; max-height: 100%; object-fit: contain; transition: opacity 0.3s ease-in-out; position:relative; z-index:2; display:none;"></canvas> <!-- ADDED -->
                     </div>
+
+                    <!-- For lightboxImage (central) -->
                     <div id="carouselCurrentImageContainer" style="flex-grow: 1; height: 100%; max-width:55%; display:flex; align-items:center; justify-content:center; position: relative;">
                         <div class="skeleton-placeholder" id="lightboxImagePlaceholder" style="display:none; position: absolute; width:100%; height:100%; background-color: var(--bg-tertiary-color); z-index:1;"></div>
-                        <img id="lightboxImage" class="lightbox-image" src="#" alt="Current Lightbox Image" style="max-width: 100%; max-height: 100%; object-fit: contain; cursor: grab; opacity:0; position:relative; z-index:2;">
+                        <img id="lightboxImage" class="lightbox-image" src="#" alt="Current Lightbox Image" style="max-width: 100%; max-height: 100%; object-fit: contain; cursor: grab; opacity:0; position:relative; z-index:2; display:none;"> <!-- MODIFIED: Add display:none initially -->
+                        <canvas id="lightboxCanvas" class="lightbox-image" style="max-width: 100%; max-height: 100%; object-fit: contain; cursor: grab; opacity:0; position:relative; z-index:2; display:none;"></canvas> <!-- ADDED -->
                         <div id="carouselCurrentImageSpinner" class="loading-spinner" style="display:none; position:absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; z-index:3;"></div>
                     </div>
+
+                    <!-- For carouselNextImage -->
                     <div class="carousel-side-image-container" style="max-width: 20%; max-height: 70%; position: relative; display:flex; align-items:center; justify-content:center;">
                         <div class="skeleton-placeholder" id="carouselNextImagePlaceholder" style="display:none; position: absolute; width:100%; height:100%; background-color: var(--bg-tertiary-color); z-index:1;"></div>
-                        <img id="carouselNextImage" class="carousel-side-image" src="#" alt="Next Image" style="cursor:pointer; opacity:0.6; max-width: 100%; max-height: 100%; object-fit: contain; transition: opacity 0.3s ease-in-out; position:relative; z-index:2;">
+                        <img id="carouselNextImage" class="carousel-side-image" src="#" alt="Next Image" style="cursor:pointer; opacity:0.6; max-width: 100%; max-height: 100%; object-fit: contain; transition: opacity 0.3s ease-in-out; position:relative; z-index:2; display:none;"> <!-- MODIFIED: Add display:none initially -->
+                        <canvas id="carouselNextCanvas" class="carousel-side-image" style="cursor:pointer; opacity:0.6; max-width: 100%; max-height: 100%; object-fit: contain; transition: opacity 0.3s ease-in-out; position:relative; z-index:2; display:none;"></canvas> <!-- ADDED -->
                     </div>
                 </div>
 
@@ -869,15 +925,18 @@ https://example.com/your-image3.png" required></textarea>
                     <div id="lightboxSliderContent"> <!-- This will be sized to the 'contained' image -->
                         <div class="slider-image-wrapper" style="position:absolute; top:0; left:0; width:100%; height:100%;">
                             <div class="skeleton-placeholder" id="sliderImg1Placeholder" style="display:none; position: absolute; width:100%; height:100%; background-color: var(--bg-tertiary-color); z-index:1;"></div>
-                            <img id="sliderImg1" class="slider-comparison-image" src="#" style="opacity:0; z-index:2; position:relative;">
+                            <img id="sliderImg1" class="slider-comparison-image" src="#" style="opacity:0; z-index:2; position:absolute; display:none;"> <!-- MODIFIED: Add display:none -->
+                            <canvas id="sliderCanvas1" class="slider-comparison-image" style="opacity:0; z-index:2; position:absolute; display:none;"></canvas> <!-- ADDED -->
                         </div>
                         <div class="slider-image-wrapper" style="position:absolute; top:0; left:0; width:100%; height:100%;">
                             <div class="skeleton-placeholder" id="sliderImg2Placeholder" style="display:none; position: absolute; width:100%; height:100%; background-color: var(--bg-tertiary-color); z-index:1;"></div>
-                            <img id="sliderImg2" class="slider-comparison-image" src="#" style="opacity:0; z-index:2; position:relative;">
+                            <img id="sliderImg2" class="slider-comparison-image" src="#" style="opacity:0; z-index:2; position:absolute; display:none;"> <!-- MODIFIED: Add display:none -->
+                            <canvas id="sliderCanvas2" class="slider-comparison-image" style="opacity:0; z-index:2; position:absolute; display:none;"></canvas> <!-- ADDED -->
                         </div>
                         <div class="slider-image-wrapper" style="position:absolute; top:0; left:0; width:100%; height:100%;">
                             <div class="skeleton-placeholder" id="sliderImg3Placeholder" style="display:none; position: absolute; width:100%; height:100%; background-color: var(--bg-tertiary-color); z-index:1;"></div>
-                            <img id="sliderImg3" class="slider-comparison-image" src="#" style="display:none; opacity:0; z-index:2; position:relative;">
+                            <img id="sliderImg3" class="slider-comparison-image" src="#" style="display:none; opacity:0; z-index:2; position:absolute; display:none;"> <!-- MODIFIED: Add display:none (it was already there, ensure it is) -->
+                            <canvas id="sliderCanvas3" class="slider-comparison-image" style="display:none; opacity:0; z-index:2; position:absolute; display:none;"></canvas> <!-- ADDED -->
                         </div>
                         <!-- Note: The clip-path will be applied to the wrapper or the image directly.
                             If applied to wrapper, ensure image inside is 100% width/height of wrapper.
@@ -922,6 +981,14 @@ https://example.com/your-image3.png" required></textarea>
         let userApiKey = null;
         let userDbUrl = null; // Will be set after validation
         const DEFAULT_DB_URL = 'https://batchimagecomparer-1d67.restdb.io/rest/albums';
+
+        let imageDimensionCache = {}; // To store { url: { width, height, loaded: true/false, error: true/false } }
+        let imagePreloadManager = { // To manage preloading Image objects
+            cache: {}, // { url: ImageObject }
+            isLoading: new Set() // URLs currently being loaded by this manager
+        };
+        const CANVAS_MAX_DIMENSION = 4096; // Safety for very large images on canvas
+
         const MAX_SELECTED_ALBUMS = 3;
 
         const mainContainer = document.querySelector('.container');
@@ -952,9 +1019,9 @@ https://example.com/your-image3.png" required></textarea>
         const imageIndicator = document.getElementById('imageIndicator');
 
         const imagePanes = [
-            { id: 'imagePane1', el: document.getElementById('imagePane1'), titleEl: document.getElementById('albumTitle1'), imgEl: document.getElementById('img1'), placeholderEl: document.getElementById('img1Placeholder'), nameEl: document.getElementById('img1Name'), urls: [], albumData: null },
-            { id: 'imagePane2', el: document.getElementById('imagePane2'), titleEl: document.getElementById('albumTitle2'), imgEl: document.getElementById('img2'), placeholderEl: document.getElementById('img2Placeholder'), nameEl: document.getElementById('img2Name'), urls: [], albumData: null },
-            { id: 'imagePane3', el: document.getElementById('imagePane3'), titleEl: document.getElementById('albumTitle3'), imgEl: document.getElementById('img3'), placeholderEl: document.getElementById('img3Placeholder'), nameEl: document.getElementById('img3Name'), urls: [], albumData: null }
+            { id: 'imagePane1', el: document.getElementById('imagePane1'), titleEl: document.getElementById('albumTitle1'), imgEl: document.getElementById('img1'), canvasEl: document.getElementById('canvas1'), placeholderEl: document.getElementById('img1Placeholder'), nameEl: document.getElementById('img1Name'), urls: [], albumData: null }, // ADDED canvasEl
+            { id: 'imagePane2', el: document.getElementById('imagePane2'), titleEl: document.getElementById('albumTitle2'), imgEl: document.getElementById('img2'), canvasEl: document.getElementById('canvas2'), placeholderEl: document.getElementById('img2Placeholder'), nameEl: document.getElementById('img2Name'), urls: [], albumData: null }, // ADDED canvasEl
+            { id: 'imagePane3', el: document.getElementById('imagePane3'), titleEl: document.getElementById('albumTitle3'), imgEl: document.getElementById('img3'), canvasEl: document.getElementById('canvas3'), placeholderEl: document.getElementById('img3Placeholder'), nameEl: document.getElementById('img3Name'), urls: [], albumData: null }  // ADDED canvasEl
         ];
 
         const lightboxOverlay = document.getElementById('lightboxOverlay');
@@ -995,6 +1062,14 @@ https://example.com/your-image3.png" required></textarea>
         const lightboxShareBtn = document.getElementById('lightboxShareBtn');
         const lightboxPrevSetBtn = document.getElementById('lightboxPrevSetBtn'); // ADDED
         const lightboxNextSetBtn = document.getElementById('lightboxNextSetBtn'); // ADDED
+
+        const lightboxCanvas = document.getElementById('lightboxCanvas');
+        const carouselPrevCanvas = document.getElementById('carouselPrevCanvas');
+        const carouselNextCanvas = document.getElementById('carouselNextCanvas');
+
+        const sliderCanvas1 = document.getElementById('sliderCanvas1');
+        const sliderCanvas2 = document.getElementById('sliderCanvas2');
+        const sliderCanvas3 = document.getElementById('sliderCanvas3');
 
         let allAlbums = [];
         let selectedAlbumIds = [];
@@ -1333,81 +1408,257 @@ https://example.com/your-image3.png" required></textarea>
             });
         });
 
-        // --- PLACEHOLDERS ---
-        function setImageWithPlaceholder(imgElement, placeholderElement, spinnerElement, url, isSideCarousel = false) {
-            if (!imgElement || !placeholderElement) {
-                console.error("setImageWithPlaceholder: Image or Placeholder element is missing.");
+        // --- CANVASES ---
+
+        function drawImageOnCanvasWithContain(canvas, img, isSideCarousel = false) {
+            if (!canvas || !img || !img.naturalWidth || !img.naturalHeight) {
+                console.error("drawImageOnCanvasWithContain: Missing canvas, image, or image not loaded.", canvas, img);
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
                 return;
             }
 
-            // Always reset opacity and clear error state on placeholder before deciding what to do
-            imgElement.style.opacity = '0';
-            placeholderElement.style.backgroundColor = 'var(--bg-tertiary-color)'; // Reset error bg
-            placeholderElement.textContent = ''; // Clear any error/status text
+            const ctx = canvas.getContext('2d');
+            const imgAspectRatio = img.naturalWidth / img.naturalHeight;
 
-            if (!url) { // Intentionally no image for this slot
-                if (spinnerElement) spinnerElement.style.display = 'none';
-                placeholderElement.textContent = ''; // No image, so placeholder should be blank or styled as empty
-                placeholderElement.style.display = 'block'; // Or 'none' if you prefer truly empty slots to collapse
-                imgElement.src = ""; // Clear src
-                imgElement.style.display = 'none'; // Hide img element
-                imgElement.dataset.currentSrc = "";    // Clear data attributes
-                imgElement.dataset.loadError = "false"; // Reset error state
-                return;
+            let canvasContainerWidth, canvasContainerHeight;
+
+            if (canvas.id.startsWith('canvas')) { // Main panes
+                canvasContainerWidth = canvas.parentElement.clientWidth;
+                canvasContainerHeight = 350; // Max height from CSS
+            } else if (canvas.id === 'lightboxCanvas') {
+                canvasContainerWidth = lightboxImageContainer.clientWidth;
+                canvasContainerHeight = lightboxImageContainer.clientHeight;
+            } else if (canvas.id === 'carouselPrevCanvas' || canvas.id === 'carouselNextCanvas') {
+                const LICKW = lightboxImageContainer.clientWidth;
+                const LICKH = lightboxImageContainer.clientHeight;
+
+                if (LICKW === 0 || LICKH === 0) {
+                    console.warn(`Lightbox image container has zero dimensions when drawing ${canvas.id}. W: ${LICKW}, H: ${LICKH}. Falling back.`);
+                    // Fallback to canvas.offsetWidth or image natural dimensions if LICK is not ready
+                    // This might still result in small images if offsetWidth is small, but it's a last resort.
+                    canvasContainerWidth = canvas.offsetWidth || img.naturalWidth;
+                    canvasContainerHeight = canvas.offsetHeight || img.naturalHeight;
+                } else {
+                    // .carousel-side-image-container is max 20% width, 70% height of lightboxImageContainer.
+                    // The canvas inside it is max 100% of that. So these are the effective max dimensions for the canvas content.
+                    canvasContainerWidth = LICKW * 0.20;
+                    canvasContainerHeight = LICKH * 0.70;
+                }
+            } else if (canvas.id.startsWith('sliderCanvas')) {
+                canvasContainerWidth = lightboxSliderContent.clientWidth;
+                canvasContainerHeight = lightboxSliderContent.clientHeight;
+            } else { // Fallback for any other canvas
+                canvasContainerWidth = canvas.clientWidth || canvas.width;
+                canvasContainerHeight = canvas.clientHeight || canvas.height;
             }
             
-            // If we have a URL, ensure img element is display:block for loading
-            imgElement.style.display = 'block';
-            placeholderElement.style.display = 'block'; // Show skeleton while deciding/loading
-            if (spinnerElement) spinnerElement.style.display = 'block';
-
-
-            // Check if this exact URL was already processed (loaded or failed)
-            const hasProcessedThisUrl = imgElement.dataset.currentSrc === url;
-            const hadErrorWithThisUrl = imgElement.dataset.loadError === 'true';
-
-            if (hasProcessedThisUrl) {
-                if (!hadErrorWithThisUrl && imgElement.complete && imgElement.naturalWidth > 0) { // Successfully loaded before
-                    if (spinnerElement) spinnerElement.style.display = 'none';
-                    placeholderElement.style.display = 'none';
-                    imgElement.style.opacity = isSideCarousel ? '0.6' : '1';
-                } else { // Errored before, or somehow incomplete but src matches
-                    if (spinnerElement) spinnerElement.style.display = 'none';
-                    placeholderElement.style.display = 'block';
-                    placeholderElement.style.backgroundColor = 'var(--error-color)';
-                    placeholderElement.textContent = 'Load Error';
-                    imgElement.style.opacity = '0'; // Keep image hidden
-                    // dataset.loadError should already be 'true'
+            // This existing fallback is still useful if the above calculations yield zero for some reason.
+            if (canvasContainerWidth === 0 || canvasContainerHeight === 0) {
+                canvasContainerWidth = canvas.offsetWidth || img.naturalWidth;
+                canvasContainerHeight = canvas.offsetHeight || img.naturalHeight;
+                 if (canvasContainerWidth === 0 || canvasContainerHeight === 0) { // If still zero, can't draw
+                    console.error("Cannot determine container dimensions for canvas:", canvas.id);
+                    return;
                 }
-                return; // Already handled this URL
             }
 
-            // New URL or URL that hasn't completed loading/erroring yet
-            imgElement.src = url;
-            imgElement.dataset.currentSrc = url; // Set this BEFORE onload/onerror
-            imgElement.dataset.loadError = 'false';
+            const containerAspectRatio = canvasContainerWidth / canvasContainerHeight;
+            let drawWidth, drawHeight;
 
-            imgElement.onload = () => {
-                if (imgElement.dataset.currentSrc !== url) return; 
+            if (imgAspectRatio > containerAspectRatio) {
+                drawWidth = canvasContainerWidth;
+                drawHeight = drawWidth / imgAspectRatio;
+            } else {
+                drawHeight = canvasContainerHeight;
+                drawWidth = drawHeight * imgAspectRatio;
+            }
+
+            drawWidth = Math.min(drawWidth, CANVAS_MAX_DIMENSION, img.naturalWidth); // Also cap by naturalWidth
+            drawHeight = Math.min(drawHeight, CANVAS_MAX_DIMENSION, img.naturalHeight); // Also cap by naturalHeight
+            
+            // Ensure draw dimensions are at least 1px to avoid errors if calculations result in zero or negative
+            drawWidth = Math.max(1, drawWidth);
+            drawHeight = Math.max(1, drawHeight);
+
+            canvas.width = drawWidth;
+            canvas.height = drawHeight;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            canvas.style.opacity = (isSideCarousel && !canvas.matches(':hover')) ? '0.6' : '1';
+            canvas.style.display = 'block';
+
+            if (canvas.id === 'lightboxCanvas' && !isSliderModeActive) {
+                applyLightboxCanvasTransform();
+            }
+        }
+
+        function applyLightboxCanvasTransform() {
+            if (isSliderModeActive || !lightboxCanvas) return;
+            // Get current translation from lightboxImage (the hidden one used for drag calcs)
+            let unscaledX = 0, unscaledY = 0;
+            const currentTransform = lightboxImage.style.transform; // lightboxImage is still used for drag logic state
+            const translateMatch = currentTransform.match(/translate\(([^p]+)px, ([^p]+)px\)/);
+            if (translateMatch) {
+                unscaledX = parseFloat(translateMatch[1]);
+                unscaledY = parseFloat(translateMatch[2]);
+            }
+            lightboxCanvas.style.transform = `translate(${unscaledX}px, ${unscaledY}px) scale(${lightboxCurrentScale})`;
+            lightboxCanvas.style.cursor = lightboxCurrentScale > 1 ? 'grab' : 'default';
+        }
+
+        // --- PLACEHOLDERS ---
+        function setImageWithPlaceholder(imgElement, canvasElement, placeholderElement, spinnerElement, url, isSideCarousel = false, forSlider = false) {
+            if (!imgElement || !canvasElement || !placeholderElement) {
+                console.error("setImageWithPlaceholder: Critical element missing for URL:", url);
+                return;
+            }
+
+            const ctx = canvasElement.getContext('2d');
+
+            // --- IMMEDIATE RESET FOR NEW URL ---
+            // Regardless of previous state, if a new URL is coming, reset related elements.
+            // This is crucial to prevent previous image/error states from lingering.
+            imgElement.onload = null; // Detach old handlers
+            imgElement.onerror = null;
+            if (imgElement.src && imgElement.src !== "about:blank" && imgElement.src !== "#") { // If it was loading something
+                imgElement.src = "#"; // Stop any previous load
+            }
+            imgElement.removeAttribute('src');
+
+
+            canvasElement.style.display = 'none';
+            canvasElement.style.opacity = '0';
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            placeholderElement.style.backgroundColor = 'var(--bg-tertiary-color)'; // Reset placeholder color
+            placeholderElement.textContent = ''; // Clear text initially
+            placeholderElement.style.display = 'block'; // Show skeleton placeholder by default
+
+            if (spinnerElement) spinnerElement.style.display = 'block';
+            // --- END IMMEDIATE RESET ---
+
+            if (!url) { // No URL provided, show appropriate empty state
+                if (spinnerElement) spinnerElement.style.display = 'none';
+                placeholderElement.textContent = forSlider ? '' : (isSideCarousel ? '' : 'Select an album');
+                if (canvasElement.id.startsWith('canvas')) placeholderElement.textContent = 'No image for comparison'; // Main pane specific
+
+                imgElement.dataset.currentSrc = ""; // Clear dataset
+                imgElement.dataset.loadError = "false";
+                if (imageDimensionCache[url]) delete imageDimensionCache[url];
+                return;
+            }
+
+            // Set this unique ID for the current loading operation on this element combination
+            const loadOperationId = Date.now() + Math.random();
+            imgElement.dataset.loadOperationId = loadOperationId;
+            imgElement.dataset.currentSrc = url; // Set currentSrc *before* assigning src
+            imgElement.dataset.loadError = "false";
+
+
+            // --- Placeholder Text & Sizing ---
+            // Set "Loading..." text on placeholder if we are actually going to load
+            placeholderElement.textContent = 'Loading image...';
+
+            // Attempt to size placeholder if dimensions are known (from cache)
+            if (imageDimensionCache[url] && imageDimensionCache[url].loaded && imageDimensionCache[url].width && imageDimensionCache[url].height) {
+                const dims = imageDimensionCache[url];
+                const containerWidth = canvasElement.parentElement.clientWidth;
+                const cssMaxHeight = parseInt(getComputedStyle(canvasElement).maxHeight) || Infinity;
+
+                const targetWidth = Math.min(dims.width, containerWidth || dims.width);
+                const targetHeight = Math.min(dims.height, cssMaxHeight || dims.height);
+                
+                // Basic aspect ratio for placeholder (this is still a rough fit)
+                // A better way is CSS aspect-ratio property if you can set it on the placeholder
+                placeholderElement.style.width = `${targetWidth}px`;
+                placeholderElement.style.height = `${targetHeight}px`;
+                // For lightbox, placeholders are full size of their containers
+                if (canvasElement === lightboxCanvas || canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas || forSlider) {
+                    placeholderElement.style.width = '100%';
+                    placeholderElement.style.height = '100%';
+                }
+            } else {
+                // Default placeholder sizing if no dimensions (relies on existing CSS for .error-placeholder)
+                // For lightbox, ensure placeholders take up their intended space
+                if (canvasElement === lightboxCanvas || canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas || forSlider) {
+                    placeholderElement.style.width = '100%';
+                    placeholderElement.style.height = '100%';
+                } else {
+                    // For main panes, let existing CSS define placeholder size
+                    placeholderElement.style.width = ''; // Reset to CSS default
+                    placeholderElement.style.height = '';// Reset to CSS default
+                }
+            }
+            // --- End Placeholder Text & Sizing ---
+
+            // Check our preload manager
+            if (imagePreloadManager.cache[url] && imagePreloadManager.cache[url].complete && imagePreloadManager.cache[url].naturalWidth > 0) {
+                const preloadedImg = imagePreloadManager.cache[url];
+                // imgElement.dataset still needs to reflect this URL for consistency, already set above.
+                imageDimensionCache[url] = {
+                    width: preloadedImg.naturalWidth,
+                    height: preloadedImg.naturalHeight,
+                    loaded: true,
+                    error: false
+                };
+
                 if (spinnerElement) spinnerElement.style.display = 'none';
                 placeholderElement.style.display = 'none';
-                // Set initial opacity correctly
-                imgElement.style.opacity = (isSideCarousel && !imgElement.matches(':hover')) ? '0.6' : '1'; // If side and not hovered, 0.6
-                imgElement.dataset.loadError = 'false';
-                if (imgElement === lightboxImage) {
-                    resetLightboxZoomAndPosition();
+                drawImageOnCanvasWithContain(canvasElement, preloadedImg, isSideCarousel);
+
+                if (imgElement === lightboxImage) resetLightboxZoomAndPosition();
+                return;
+            }
+
+            // If not preloaded, proceed with normal load via the hidden imgElement
+            imgElement.onload = () => {
+                // CRITICAL CHECK: Only proceed if this onload corresponds to the *current* operation for this imgElement
+                if (imgElement.dataset.loadOperationId !== loadOperationId.toString() || imgElement.dataset.currentSrc !== url) {
+                    // console.warn("Stale onload event ignored for:", url, "on element:", imgElement.id);
+                    return;
                 }
+
+                imageDimensionCache[url] = {
+                    width: imgElement.naturalWidth,
+                    height: imgElement.naturalHeight,
+                    loaded: true,
+                    error: false
+                };
+                if (imagePreloadManager.isLoading.has(url)) imagePreloadManager.isLoading.delete(url);
+                imagePreloadManager.cache[url] = imgElement; // Cache the actual img element that loaded
+
+                if (spinnerElement) spinnerElement.style.display = 'none';
+                placeholderElement.style.display = 'none';
+                drawImageOnCanvasWithContain(canvasElement, imgElement, isSideCarousel);
+
+                if (imgElement === lightboxImage) resetLightboxZoomAndPosition();
             };
 
             imgElement.onerror = () => {
-                if (imgElement.dataset.currentSrc !== url) return; // Stale load event
+                // CRITICAL CHECK:
+                if (imgElement.dataset.loadOperationId !== loadOperationId.toString() || imgElement.dataset.currentSrc !== url) {
+                    // console.warn("Stale onerror event ignored for:", url, "on element:", imgElement.id);
+                    return;
+                }
+                console.error("Error loading image:", url, "for element:", imgElement.id);
+                imageDimensionCache[url] = { error: true, loaded: false, width: 0, height: 0 }; // Store error
+                if (imagePreloadManager.isLoading.has(url)) imagePreloadManager.isLoading.delete(url);
+
                 if (spinnerElement) spinnerElement.style.display = 'none';
-                placeholderElement.style.display = 'block';
+                placeholderElement.style.display = 'flex'; // Ensure placeholder is visible for error
                 placeholderElement.style.backgroundColor = 'var(--error-color)';
                 placeholderElement.textContent = 'Load Error';
-                imgElement.style.opacity = '0';
+                canvasElement.style.display = 'none';
                 imgElement.dataset.loadError = 'true';
             };
+
+            // Assign src to start loading. This MUST be the last step related to imgElement.src
+            imgElement.src = url;
         }
         
         // --- API CALLS ---
@@ -1626,35 +1877,96 @@ https://example.com/your-image3.png" required></textarea>
         }
 
         function clearImagePane(pane, message = "No image loaded") {
-            pane.imgEl.src = "#"; pane.imgEl.style.display = 'none'; pane.imgEl.style.opacity = '1'; // Reset opacity
-            pane.placeholderEl.textContent = message; pane.placeholderEl.style.display = 'flex';
-            pane.nameEl.textContent = "-"; pane.imgEl.onclick = null;
+            pane.imgEl.src = "#"; // Still good to clear the hidden loader
+            pane.imgEl.style.display = 'none';
+            // pane.imgEl.style.opacity = '1'; // Not relevant as it's hidden
+
+            if (pane.canvasEl) {
+                const ctx = pane.canvasEl.getContext('2d');
+                ctx.clearRect(0, 0, pane.canvasEl.width, pane.canvasEl.height);
+                pane.canvasEl.style.display = 'none'; // Hide canvas
+            }
+
+            pane.placeholderEl.textContent = message;
+            pane.placeholderEl.style.display = 'flex';
+            pane.nameEl.textContent = "-";
+            if (pane.canvasEl) pane.canvasEl.onclick = null; // Clear click from canvas
+            // pane.imgEl.onclick = null; // imgEl is hidden
         }
 
         function setImageForPane(pane, url, paneGlobalIndex) {
-            if (!url) { clearImagePane(pane, pane.albumData ? 'No image at this index' : 'No album loaded'); return; }
-            
-            pane.imgEl.style.display = 'none'; // Hide image initially
-            pane.placeholderEl.textContent = 'Loading image...'; // Show loading text
+            if (!pane.canvasEl) {
+                console.error("Canvas element missing for pane:", pane.id);
+                clearImagePane(pane, 'Configuration error');
+                return;
+            }
+
+            // Show loading state on placeholder BEFORE calling setImageWithPlaceholder
+            pane.placeholderEl.textContent = 'Loading image...';
             pane.placeholderEl.style.display = 'flex'; // Ensure placeholder is visible
-            // pane.imgEl.style.opacity = '0.5'; // Optional: slightly dim image area if needed
+            pane.canvasEl.style.display = 'none';   // Hide canvas while loading starts
+            pane.nameEl.textContent = url ? getFileNameFromUrl(url) : "-"; // Set name early
 
-            pane.imgEl.src = url;
-            pane.nameEl.textContent = getFileNameFromUrl(url);
+            if (!url) {
+                clearImagePane(pane, pane.albumData ? 'No image at this index' : 'No album loaded');
+                // The clearImagePane function already handles hiding canvas and showing placeholder.
+                return;
+            }
 
-            pane.imgEl.onload = () => {
-                pane.imgEl.style.display = 'block';
-                // pane.imgEl.style.opacity = '1';
-                pane.placeholderEl.style.display = 'none'; // Hide placeholder
-                pane.imgEl.onclick = () => openLightbox(paneGlobalIndex, currentPairIndex);
+            // The new setImageWithPlaceholder handles showing placeholder/spinner internally now.
+            // We pass null for spinnerElement for main panes as per original design.
+            // If you want spinners on main panes, you'd need to add spinner elements to the HTML for each pane
+            // and pass their references here.
+            setImageWithPlaceholder(pane.imgEl, pane.canvasEl, pane.placeholderEl, null /* spinnerElement for main pane */, url);
+
+            // Click handler should be on the canvas now
+            pane.canvasEl.onclick = () => openLightbox(paneGlobalIndex, currentPairIndex);
+
+            // Preload next and previous images for the main view
+            if (pane.urls && pane.urls.length > 1) {
+                if (currentPairIndex < pane.urls.length - 1) {
+                    preloadImage(pane.urls[currentPairIndex + 1]);
+                }
+                if (currentPairIndex > 0) {
+                    preloadImage(pane.urls[currentPairIndex - 1]);
+                }
+            }
+        }
+
+        function preloadImage(url) {
+            if (!url || imagePreloadManager.cache[url] || imagePreloadManager.isLoading.has(url)) {
+                return; // Already cached, loading, or no URL
+            }
+
+            // console.log('Preloading:', url);
+            imagePreloadManager.isLoading.add(url);
+            const img = new Image();
+            img.onload = () => {
+                // console.log('Preloaded successfully:', url);
+                imagePreloadManager.cache[url] = img;
+                imagePreloadManager.isLoading.delete(url);
+                // Store dimensions from preloaded image
+                imageDimensionCache[url] = {
+                    width: img.naturalWidth,
+                    height: img.naturalHeight,
+                    loaded: true,
+                    error: false
+                };
             };
-            pane.imgEl.onerror = () => {
-                pane.imgEl.style.display = 'none';
-                // pane.imgEl.style.opacity = '1';
-                pane.placeholderEl.textContent = 'Error loading image.';
-                pane.placeholderEl.style.display = 'flex'; // Keep placeholder visible with error
-                pane.nameEl.textContent = getFileNameFromUrl(url) + " (Error)"; pane.imgEl.onclick = null;
+            img.onerror = () => {
+                console.error('Failed to preload:', url);
+                imagePreloadManager.isLoading.delete(url);
+                imageDimensionCache[url] = { error: true, loaded: false };
+                // Don't store failed preloads in imagePreloadManager.cache
             };
+            img.src = url;
+        }
+
+        // ADD THIS NEW FUNCTION - to clear preload cache if albums change significantly
+        function clearImagePreloadCache() {
+            imagePreloadManager.cache = {};
+            imagePreloadManager.isLoading.clear();
+            // imageDimensionCache = {}; // Optionally clear dimension cache too, or keep it more persistent
         }
 
         function updateComparisonDisplay() {
@@ -1970,6 +2282,13 @@ https://example.com/your-image3.png" required></textarea>
                     }
 
                     updateLightboxView(); // This will call updateCarouselDisplay or setupSliderComparison
+
+                    // Preload images for the new set in the lightbox
+                    lightboxActivePanesForView.forEach(paneData => {
+                        if (paneData.albumData && paneData.albumData.imageUrls && paneData.albumData.imageUrls[currentPairIndex]) {
+                            preloadImage(paneData.albumData.imageUrls[currentPairIndex]);
+                        }
+                    });
                 }
             }
         }
@@ -2044,13 +2363,20 @@ https://example.com/your-image3.png" required></textarea>
         }
 
         function closeLightbox() {
-            // ... (existing slider mode cleanup) ...
             isSliderModeActive = false;
             if (lightboxSliderView) lightboxSliderView.style.display = 'none';
             [sliderImg1, sliderImg2, sliderImg3].forEach(img => {
                 if (img) {
                     img.src = "#"; img.style.opacity = '0';
                     img.dataset.currentSrc = ""; img.dataset.loadError = "false"; // Reset
+                }
+            });
+            [sliderCanvas1, sliderCanvas2, sliderCanvas3].forEach(canvas => { // ADDED
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    canvas.style.display = 'none';
+                    canvas.style.opacity = '0';
                 }
             });
             [sliderImg1Placeholder, sliderImg2Placeholder, sliderImg3Placeholder].forEach(p => { if (p) p.style.display = 'none'; });
@@ -2062,6 +2388,13 @@ https://example.com/your-image3.png" required></textarea>
                 lightboxImage.src = "#"; lightboxImage.style.opacity = '0';
                 lightboxImage.dataset.currentSrc = ""; lightboxImage.dataset.loadError = "false"; // Reset
             }
+            if (lightboxCanvas) { // ADDED
+                const ctx = lightboxCanvas.getContext('2d');
+                ctx.clearRect(0, 0, lightboxCanvas.width, lightboxCanvas.height);
+                lightboxCanvas.style.display = 'none';
+                lightboxCanvas.style.opacity = '0';
+                lightboxCanvas.style.transform = 'translate(0px, 0px) scale(1)'; // Reset transform
+            }
             if (lightboxImagePlaceholder) lightboxImagePlaceholder.style.display = 'none';
             if (carouselCurrentImageSpinner) carouselCurrentImageSpinner.style.display = 'none';
 
@@ -2069,11 +2402,21 @@ https://example.com/your-image3.png" required></textarea>
                 carouselPrevImage.src = "#"; carouselPrevImage.style.opacity = '0';
                 carouselPrevImage.dataset.currentSrc = ""; carouselPrevImage.dataset.loadError = "false"; // Reset
             }
+            if (carouselPrevCanvas) { // ADDED
+                const ctx = carouselPrevCanvas.getContext('2d');
+                ctx.clearRect(0, 0, carouselPrevCanvas.width, carouselPrevCanvas.height);
+                carouselPrevCanvas.style.display = 'none';
+            }
             if (carouselPrevImagePlaceholder) carouselPrevImagePlaceholder.style.display = 'none';
 
             if (carouselNextImage) {
                 carouselNextImage.src = "#"; carouselNextImage.style.opacity = '0';
                 carouselNextImage.dataset.currentSrc = ""; carouselNextImage.dataset.loadError = "false"; // Reset
+            }
+            if (carouselNextCanvas) { // ADDED
+                const ctx = carouselNextCanvas.getContext('2d');
+                ctx.clearRect(0, 0, carouselNextCanvas.width, carouselNextCanvas.height);
+                carouselNextCanvas.style.display = 'none';
             }
             if (carouselNextImagePlaceholder) carouselNextImagePlaceholder.style.display = 'none';
 
@@ -2132,7 +2475,13 @@ https://example.com/your-image3.png" required></textarea>
                 centralImageTitle = `${currentPaneDataInSet.albumData.title} - ${getFileNameFromUrl(centralImageUrl)} (Image ${currentPairIndex + 1} from album, Set Item ${carouselCurrentImageSetIndex + 1}/${lightboxActivePanesForView.length})`;
             }
             
-            setImageWithPlaceholder(lightboxImage, lightboxImagePlaceholder, carouselCurrentImageSpinner, centralImageUrl);
+            setImageWithPlaceholder(
+                lightboxImage,      // Hidden <img> loader
+                lightboxCanvas,     // Visible <canvas>
+                lightboxImagePlaceholder,
+                carouselCurrentImageSpinner,
+                centralImageUrl
+            );
             lightboxCaption.textContent = centralImageTitle;
 
             // Previous Image in Carousel
@@ -2143,7 +2492,16 @@ https://example.com/your-image3.png" required></textarea>
                     prevImageUrl = prevPaneDataInSet.albumData.imageUrls[currentPairIndex];
                 }
             }
-            setImageWithPlaceholder(carouselPrevImage, carouselPrevImagePlaceholder, null /*no dedicated spinner for side images for now*/, prevImageUrl, true);
+            setImageWithPlaceholder(
+                carouselPrevImage,
+                carouselPrevCanvas,
+                carouselPrevImagePlaceholder,
+                null,
+                prevImageUrl,
+                true // isSideCarousel
+            );
+            // carouselPrevCanvas.style.display = prevImageUrl ? 'block' : 'none';
+            // setImageWithPlaceholder handles display
             carouselPrevImage.style.display = prevImageUrl ? 'block' : 'none'; // Control visibility of the img tag itself
             carouselPrevImagePlaceholder.style.display = prevImageUrl ? carouselPrevImagePlaceholder.style.display : 'none'; // Hide placeholder if no URL
 
@@ -2156,9 +2514,39 @@ https://example.com/your-image3.png" required></textarea>
                     nextImageUrl = nextPaneDataInSet.albumData.imageUrls[currentPairIndex];
                 }
             }
-            setImageWithPlaceholder(carouselNextImage, carouselNextImagePlaceholder, null, nextImageUrl, true);
+            setImageWithPlaceholder(
+                carouselNextImage,
+                carouselNextCanvas,
+                carouselNextImagePlaceholder,
+                null,
+                nextImageUrl,
+                true // isSideCarousel
+            );
+            // carouselNextCanvas.style.display = nextImageUrl ? 'block' : 'none';
+            // setImageWithPlaceholder handles display
             carouselNextImage.style.display = nextImageUrl ? 'block' : 'none';
             carouselNextImagePlaceholder.style.display = nextImageUrl ? carouselNextImagePlaceholder.style.display : 'none';
+
+            // Preload for carousel
+            if (lightboxActivePanesForView.length > 0) {
+                const currentPane = lightboxActivePanesForView[carouselCurrentImageSetIndex];
+                if (currentPane && currentPane.albumData && currentPane.albumData.imageUrls) {
+                    const urls = currentPane.albumData.imageUrls;
+                    // Preload next/prev within the current album being viewed centrally in carousel
+                    // This is different from preloading next/prev SETS.
+                    // This logic might need refinement depending on desired preload behavior.
+                    // For now, let's focus on preloading for the main view and next/prev sets.
+                    // Preloading for carousel's own next/prev image *within the current set*
+                    if (carouselCurrentImageSetIndex > 0) {
+                        const prevPaneInSet = lightboxActivePanesForView[carouselCurrentImageSetIndex - 1];
+                        if (prevPaneInSet.albumData.imageUrls[currentPairIndex]) preloadImage(prevPaneInSet.albumData.imageUrls[currentPairIndex]);
+                    }
+                    if (carouselCurrentImageSetIndex < lightboxActivePanesForView.length - 1) {
+                        const nextPaneInSet = lightboxActivePanesForView[carouselCurrentImageSetIndex + 1];
+                        if (nextPaneInSet.albumData.imageUrls[currentPairIndex]) preloadImage(nextPaneInSet.albumData.imageUrls[currentPairIndex]);
+                    }
+                }
+            }
 
             updateLightboxControlsState();
         }
@@ -2217,51 +2605,50 @@ https://example.com/your-image3.png" required></textarea>
         function setLightboxZoom(newScale) {
             if (isSliderModeActive) return;
             lightboxCurrentScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
+
+            // Update transform on the hidden img (if drag logic uses its style.transform)
             let unscaledX = 0, unscaledY = 0;
             const currentTransform = lightboxImage.style.transform;
             const translateMatch = currentTransform.match(/translate\(([^p]+)px, ([^p]+)px\)/);
             if (translateMatch) {
-                unscaledX = parseFloat(translateMatch[1]);
+                unscaledX = parseFloat(translateMatch[1]); // Keep current translation
                 unscaledY = parseFloat(translateMatch[2]);
             }
             lightboxImage.style.transform = `translate(${unscaledX}px, ${unscaledY}px) scale(${lightboxCurrentScale})`;
+
+            // Apply to canvas
+            if (lightboxCanvas) {
+                applyLightboxCanvasTransform(); // This will set canvas transform and cursor
+            }
             lightboxZoomLevel.textContent = `${Math.round(lightboxCurrentScale * 100)}%`;
-            lightboxImage.style.cursor = lightboxCurrentScale > 1 ? 'grab' : 'default';
         }
 
         function resetLightboxZoomAndPosition() {
             if (isSliderModeActive) return;
             lightboxCurrentScale = 1;
-            lightboxImage.style.transform = 'translate(0px, 0px) scale(1)'; 
+            // Reset transform on the hidden img (if drag logic uses its style.transform)
+            lightboxImage.style.transform = 'translate(0px, 0px) scale(1)';
+            // Apply to canvas
+            if (lightboxCanvas) {
+                applyLightboxCanvasTransform(); // This will set canvas transform and cursor
+            }
             lightboxZoomLevel.textContent = '100%';
-            lightboxImage.style.cursor = 'default';
         }
 
         lightboxCloseBtn.addEventListener('click', closeLightbox);
 
-        [carouselPrevImage, carouselNextImage].forEach(sideImg => {
-            if (!sideImg) return;
-            sideImg.addEventListener('mouseenter', () => {
-                // Only increase opacity if the image is actually loaded and not showing an error
-                if (sideImg.style.opacity !== '0' && sideImg.dataset.loadError !== 'true' && sideImg.complete && sideImg.naturalWidth > 0) {
-                    sideImg.style.opacity = '1';
-                }
-            });
-            sideImg.addEventListener('mouseleave', () => {
-                // Reset to default opacity if it's not 0 (i.e., it's visible)
-                if (sideImg.style.opacity !== '0' && sideImg.dataset.loadError !== 'true') {
-                    sideImg.style.opacity = '0.6';
-                }
-            });
-        });
+        if (carouselPrevCanvas) {
+            carouselPrevCanvas.addEventListener('click', () => navigateCarousel(-1));
+            // Add hover effects to canvas if needed (JS or CSS if :hover works on canvas)
+            carouselPrevCanvas.addEventListener('mouseenter', () => { if (carouselPrevCanvas.style.opacity !== '0') carouselPrevCanvas.style.opacity = '1'; });
+            carouselPrevCanvas.addEventListener('mouseleave', () => { if (carouselPrevCanvas.style.opacity !== '0') carouselPrevCanvas.style.opacity = '0.6'; });
+        }
+        if (carouselNextCanvas) {
+            carouselNextCanvas.addEventListener('click', () => navigateCarousel(1));
+            carouselNextCanvas.addEventListener('mouseenter', () => { if (carouselNextCanvas.style.opacity !== '0') carouselNextCanvas.style.opacity = '1'; });
+            carouselNextCanvas.addEventListener('mouseleave', () => { if (carouselNextCanvas.style.opacity !== '0') carouselNextCanvas.style.opacity = '0.6'; });
+        }
 
-        // Add new listeners for carousel side images
-        if (carouselPrevImage) { // Check if element exists
-             carouselPrevImage.addEventListener('click', () => navigateCarousel(-1));
-        }
-        if (carouselNextImage) { // Check if element exists
-             carouselNextImage.addEventListener('click', () => navigateCarousel(1));
-        }
         lightboxZoomInBtn.addEventListener('click', () => setLightboxZoom(lightboxCurrentScale + ZOOM_STEP));
         lightboxZoomOutBtn.addEventListener('click', () => setLightboxZoom(lightboxCurrentScale - ZOOM_STEP));
         lightboxZoomResetBtn.addEventListener('click', resetLightboxZoomAndPosition);
@@ -2312,9 +2699,12 @@ https://example.com/your-image3.png" required></textarea>
             if (!lightboxIsDragging) return;
             const dxScreen = lastKnownMouseX - lightboxDragStartX;
             const dyScreen = lastKnownMouseY - lightboxDragStartY;
-            const newX = lightboxImgInitialX + dxScreen; // Dragging is 1:1 with mouse, scale doesn't affect dx/dy for translation part
+            const newX = lightboxImgInitialX + dxScreen;
             const newY = lightboxImgInitialY + dyScreen;
             lightboxImage.style.transform = `translate(${newX}px, ${newY}px) scale(${lightboxCurrentScale})`;
+            if (lightboxCanvas && !isSliderModeActive) { // ADDED: Apply to canvas
+                applyLightboxCanvasTransform();
+            }
         }
 
 
@@ -2522,36 +2912,56 @@ https://example.com/your-image3.png" required></textarea>
         }
         
         async function setupSliderComparison() {
-            if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'block'; // Show global spinner
-
-            // Hide carousel elements if they were visible
+            if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'block';
             if (lightboxCarousel) lightboxCarousel.style.display = 'none';
             [lightboxImagePlaceholder, carouselPrevImagePlaceholder, carouselNextImagePlaceholder].forEach(p => {
-                if (p) p.style.display = 'none'; // Hide carousel placeholders
+                if (p) p.style.display = 'none';
             });
             [lightboxImage, carouselPrevImage, carouselNextImage].forEach(img => {
-                if (img) img.style.opacity = '0'; // Hide carousel images
+                if (img) { img.style.opacity = '0'; img.style.display = 'none';} // Also hide display
+            });
+            [lightboxCanvas, carouselPrevCanvas, carouselNextCanvas].forEach(cvs => { // Hide carousel canvases
+                if (cvs) { cvs.style.opacity = '0'; cvs.style.display = 'none';}
             });
 
 
             const sliderImagePanesData = lightboxActivePanesForView.filter(p => p.urls && p.urls[currentPairIndex]);
             sliderNumImages = sliderImagePanesData.length;
 
+            const sliderElementsToReset = [
+                { canvas: sliderCanvas1, placeholder: sliderImg1Placeholder },
+                { canvas: sliderCanvas2, placeholder: sliderImg2Placeholder },
+                { canvas: sliderCanvas3, placeholder: sliderImg3Placeholder }
+            ];
+            sliderElementsToReset.forEach(item => {
+                if (item.canvas) {
+                    const ctx = item.canvas.getContext('2d');
+                    ctx.clearRect(0, 0, item.canvas.width, item.canvas.height);
+                    item.canvas.style.display = 'none';
+                    item.canvas.style.opacity = '0';
+                }
+                if (item.placeholder) {
+                    item.placeholder.style.display = 'block';
+                    item.placeholder.style.backgroundColor = 'var(--bg-tertiary-color)';
+                    item.placeholder.textContent = 'Loading...';
+                    item.placeholder.style.width = '100%';
+                    item.placeholder.style.height = '100%';
+                }
+            });
+
             if (sliderNumImages < 2) {
                 console.warn("Cannot setup slider comparison with less than 2 images.");
                 if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
-                toggleSliderComparisonMode(); // Revert to carousel
+                toggleSliderComparisonMode();
                 return;
             }
-
-            // Make slider view visible so its dimensions can be calculated
-            lightboxSliderView.style.display = 'flex'; // Show the main slider container
+            lightboxSliderView.style.display = 'flex';
 
             const firstImagePane = sliderImagePanesData[0];
             if (!firstImagePane || !firstImagePane.urls || !firstImagePane.urls[currentPairIndex]) {
                 console.error("First image for slider dimension calculation is missing.");
                 if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
-                toggleSliderComparisonMode(); // Revert
+                toggleSliderComparisonMode();
                 return;
             }
             const firstImageURL = firstImagePane.urls[currentPairIndex];
@@ -2562,11 +2972,9 @@ https://example.com/your-image3.png" required></textarea>
                 const containerWidth = lightboxImageContainer.clientWidth;
                 const containerHeight = lightboxImageContainer.clientHeight;
 
-                // If container has no dimensions yet, defer or use defaults (should not happen if lightboxSliderView is display:flex)
                 if (containerWidth === 0 || containerHeight === 0) {
                     console.warn("Lightbox image container has no dimensions for slider setup.");
                     if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
-                    // Optionally, try again after a short delay or revert
                     toggleSliderComparisonMode();
                     return;
                 }
@@ -2586,71 +2994,60 @@ https://example.com/your-image3.png" required></textarea>
                 lightboxSliderContent.style.height = `${sliderRenderedHeight}px`;
                 sliderOrientation = (sliderRenderedWidth > sliderRenderedHeight) ? 'vertical' : 'horizontal';
 
-                // Prepare images for loading
                 const imagesToLoadPromises = [];
                 const sliderElements = [
-                    { img: sliderImg1, placeholder: sliderImg1Placeholder, url: null },
-                    { img: sliderImg2, placeholder: sliderImg2Placeholder, url: null },
-                    { img: sliderImg3, placeholder: sliderImg3Placeholder, url: null }
+                    { img: sliderImg1, canvas: sliderCanvas1, placeholder: sliderImg1Placeholder, url: null },
+                    { img: sliderImg2, canvas: sliderCanvas2, placeholder: sliderImg2Placeholder, url: null },
+                    { img: sliderImg3, canvas: sliderCanvas3, placeholder: sliderImg3Placeholder, url: null }
                 ];
 
-                // Assign URLs and ensure elements are visible for loading
+                // --- CORRECTED URL ASSIGNMENT ---
                 if (sliderImagePanesData[0] && sliderImagePanesData[0].urls[currentPairIndex]) {
                     sliderElements[0].url = sliderImagePanesData[0].urls[currentPairIndex];
-                    sliderImg1.style.display = 'block'; // Make img tag visible in layout
-                    sliderImg1Placeholder.style.display = 'block'; // Show placeholder
-                } else {
-                    sliderImg1.style.display = 'none'; sliderImg1Placeholder.style.display = 'none';
                 }
-
                 if (sliderImagePanesData[1] && sliderImagePanesData[1].urls[currentPairIndex]) {
                     sliderElements[1].url = sliderImagePanesData[1].urls[currentPairIndex];
-                    sliderImg2.style.display = 'block';
-                    sliderImg2Placeholder.style.display = 'block';
-                } else {
-                    sliderImg2.style.display = 'none'; sliderImg2Placeholder.style.display = 'none';
                 }
+                // This was the problematic part for the 3rd image:
+                if (sliderNumImages === 3) {
+                    if (sliderImagePanesData[2] && sliderImagePanesData[2].urls[currentPairIndex]) {
+                        sliderElements[2].url = sliderImagePanesData[2].urls[currentPairIndex];
+                    } else {
+                        sliderElements[2].url = null; // Explicitly null if data is missing for 3rd image but expected
+                    }
+                } else { // sliderNumImages is 2 (since <2 is handled earlier)
+                    sliderElements[2].url = null; // No 3rd image, so URL is null
+                }
+                // --- END OF CORRECTION ---
 
-                if (sliderNumImages === 3 && sliderImagePanesData[2] && sliderImagePanesData[2].urls[currentPairIndex]) {
-                    sliderElements[2].url = sliderImagePanesData[2].urls[currentPairIndex];
-                    sliderImg3.style.display = 'block';
-                    sliderImg3Placeholder.style.display = 'block';
-                } else {
-                    sliderImg3.style.display = 'none'; sliderImg3Placeholder.style.display = 'none';
-                    sliderImg3.src = "#"; // Clear src if not used
-                    if(sliderImg3.dataset) { sliderImg3.dataset.currentSrc = ""; sliderImg3.dataset.loadError = "false"; }
-                }
-                
-                sliderElements.forEach(item => {
-                    if (item.img.style.display !== 'none' && item.url) { // Only process if it's meant to be visible and has a URL
-                        setImageWithPlaceholder(item.img, item.placeholder, null /* No individual spinner, global is active */, item.url);
+
+                sliderElements.forEach((item, index) => {
+                    // We will call setImageWithPlaceholder for all 3 slots.
+                    // If item.url is null, setImageWithPlaceholder will handle showing "No image" or clearing.
+                    if (item.img && item.canvas && item.placeholder) {
+                        setImageWithPlaceholder(item.img, item.canvas, item.placeholder, null, item.url, false, true);
                         
-                        // Add to promises for Promise.all
-                        imagesToLoadPromises.push(new Promise(resolve => {
-                            // Check if already resolved by setImageWithPlaceholder's immediate handling
-                            if (item.img.dataset.currentSrc === item.url && ( (item.img.complete && item.img.naturalWidth > 0 && item.img.dataset.loadError === 'false') || item.img.dataset.loadError === 'true') ) {
-                                resolve();
-                            } else {
-                                const originalOnload = item.img.onload;
-                                const originalOnerror = item.img.onerror;
-                                item.img.onload = (e) => { if(originalOnload) originalOnload(e); resolve(); };
-                                item.img.onerror = (e) => { if(originalOnerror) originalOnerror(e); resolve(); }; // Resolve on error too
-                            }
-                        }));
-                    } else if (item.img.style.display !== 'none' && !item.url) { // Meant to be visible but no URL (e.g. placeholder for an empty slot)
-                        setImageWithPlaceholder(item.img, item.placeholder, null, null); // Show empty placeholder
+                        if (item.url) { // Only add to promises if there's a URL to load
+                            imagesToLoadPromises.push(new Promise(resolve => {
+                                if (imagePreloadManager.cache[item.url] && imagePreloadManager.cache[item.url].complete && imagePreloadManager.cache[item.url].naturalWidth > 0) {
+                                    resolve();
+                                    return;
+                                }
+                                const imgToWatch = item.img;
+                                const originalOnload = imgToWatch.onload;
+                                const originalOnerror = imgToWatch.onerror;
+                                imgToWatch.onload = (e) => { if(originalOnload) originalOnload(e); resolve(); };
+                                imgToWatch.onerror = (e) => { if(originalOnerror) originalOnerror(e); resolve(); }; // Resolve even on error to not block Promise.all
+                            }));
+                        }
                     }
                 });
 
                 Promise.all(imagesToLoadPromises).then(() => {
-                    // All images have either loaded or errored.
-                    // Now it's safe to initialize sliders and hide the global spinner.
-                    initializeSliderHandles(); // This positions the handles
-                    updateSliderClipping();    // This applies the clipping based on handle positions
-
-                    if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none'; // Hide global spinner
+                    initializeSliderHandles();
+                    updateSliderClipping();
+                    if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
                 }).catch(err => {
-                    // Should not happen if promises always resolve, but as a fallback
                     console.error("Error in Promise.all for slider image loading:", err);
                     if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
                 });
@@ -2658,27 +3055,26 @@ https://example.com/your-image3.png" required></textarea>
                 lightboxCaption.textContent = '';
                 lightboxCaption.appendChild(document.createTextNode('Comparing: '));
                 sliderImagePanesData.forEach((pane, idx) => {
-                    const titleSpan = document.createElement('span');
-                    titleSpan.textContent = pane.albumData.title;
-                    titleSpan.classList.add('image-title');
-                    lightboxCaption.appendChild(titleSpan);
-                    if (idx < sliderImagePanesData.length - 1) {
-                        lightboxCaption.appendChild(document.createTextNode(' vs '));
+                    if (idx < sliderNumImages) { // Only display titles for active slider images
+                        const titleSpan = document.createElement('span');
+                        titleSpan.textContent = pane.albumData.title;
+                        titleSpan.classList.add('image-title');
+                        lightboxCaption.appendChild(titleSpan);
+                        if (idx < sliderNumImages - 1) {
+                            lightboxCaption.appendChild(document.createTextNode(' vs '));
+                        }
                     }
                 });
-            }; // End of tempImg.onload
+            };
 
             tempImg.onerror = () => {
                 console.error("Failed to load first image for slider dimensions. Cannot setup slider.");
                 if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
-                // Attempt to revert to carousel mode gracefully
-                isSliderModeActive = false; // Force mode change
+                isSliderModeActive = false;
                 localStorage.setItem('lightboxViewMode', 'single');
-                updateLightboxView(); // This should now try to show carousel
+                updateLightboxView();
                 showFancyNotice("Error: Could not prepare slider view.", "error", false, 3000);
             };
-
-            // Crucial: Set src for tempImg AFTER onload/onerror are defined
             tempImg.src = firstImageURL;
         }
 
@@ -2727,21 +3123,26 @@ https://example.com/your-image3.png" required></textarea>
                 s2p = (sliderOrientation === 'vertical' ? sliderRenderedWidth : sliderRenderedHeight) * (slider2Percent / 100);
             }
 
-            if (sliderOrientation === 'vertical') { // Vertical sliders, clip width
-                sliderImg1.style.clipPath = `polygon(0 0, ${s1p}px 0, ${s1p}px 100%, 0 100%)`;
+            // Target canvas elements for clipping
+            const canvasTarget1 = sliderCanvas1;
+            const canvasTarget2 = sliderCanvas2;
+            const canvasTarget3 = sliderNumImages === 3 ? sliderCanvas3 : null;
+
+            if (sliderOrientation === 'vertical') {
+                if (canvasTarget1) canvasTarget1.style.clipPath = `polygon(0 0, ${s1p}px 0, ${s1p}px 100%, 0 100%)`;
                 if (sliderNumImages === 2) {
-                    sliderImg2.style.clipPath = `polygon(${s1p}px 0, 100% 0, 100% 100%, ${s1p}px 100%)`;
+                    if (canvasTarget2) canvasTarget2.style.clipPath = `polygon(${s1p}px 0, 100% 0, 100% 100%, ${s1p}px 100%)`;
                 } else if (sliderNumImages === 3) {
-                    sliderImg2.style.clipPath = `polygon(${s1p}px 0, ${s2p}px 0, ${s2p}px 100%, ${s1p}px 100%)`;
-                    sliderImg3.style.clipPath = `polygon(${s2p}px 0, 100% 0, 100% 100%, ${s2p}px 100%)`;
+                    if (canvasTarget2) canvasTarget2.style.clipPath = `polygon(${s1p}px 0, ${s2p}px 0, ${s2p}px 100%, ${s1p}px 100%)`;
+                    if (canvasTarget3) canvasTarget3.style.clipPath = `polygon(${s2p}px 0, 100% 0, 100% 100%, ${s2p}px 100%)`;
                 }
-            } else { // Horizontal sliders, clip height
-                sliderImg1.style.clipPath = `polygon(0 0, 100% 0, 100% ${s1p}px, 0 ${s1p}px)`;
+            } else { // Horizontal sliders
+                if (canvasTarget1) canvasTarget1.style.clipPath = `polygon(0 0, 100% 0, 100% ${s1p}px, 0 ${s1p}px)`;
                 if (sliderNumImages === 2) {
-                    sliderImg2.style.clipPath = `polygon(0 ${s1p}px, 100% ${s1p}px, 100% 100%, 0 100%)`;
+                    if (canvasTarget2) canvasTarget2.style.clipPath = `polygon(0 ${s1p}px, 100% ${s1p}px, 100% 100%, 0 100%)`;
                 } else if (sliderNumImages === 3) {
-                    sliderImg2.style.clipPath = `polygon(0 ${s1p}px, 100% ${s1p}px, 100% ${s2p}px, 0 ${s2p}px)`;
-                    sliderImg3.style.clipPath = `polygon(0 ${s2p}px, 100% ${s2p}px, 100% 100%, 0 100%)`;
+                    if (canvasTarget2) canvasTarget2.style.clipPath = `polygon(0 ${s1p}px, 100% ${s1p}px, 100% ${s2p}px, 0 ${s2p}px)`;
+                    if (canvasTarget3) canvasTarget3.style.clipPath = `polygon(0 ${s2p}px, 100% ${s2p}px, 100% 100%, 0 100%)`;
                 }
             }
         }
