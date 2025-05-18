@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="app-version" content="1.2.1">
+    <meta name="app-version" content="1.2.2a">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Batch Image Comparer (with Albums & Viewer)</title>
     <style>
@@ -976,7 +976,7 @@ https://example.com/your-image3.png" required></textarea>
 
     <script>
         const version = document.querySelector('meta[name="app-version"]').getAttribute('content');
-        document.getElementById('main-title').textContent = `Batch Image Comparer (v${version})`;
+        document.getElementById('main-title').textContent = `Batch Image Comparer v${version}`;
 
         let userApiKey = null;
         let userDbUrl = null; // Will be set after validation
@@ -1498,17 +1498,13 @@ https://example.com/your-image3.png" required></textarea>
         }
 
         function applyLightboxCanvasTransform() {
-            if (isSliderModeActive || !lightboxCanvas) return;
-            // Get current translation from lightboxImage (the hidden one used for drag calcs)
-            let unscaledX = 0, unscaledY = 0;
-            const currentTransform = lightboxImage.style.transform; // lightboxImage is still used for drag logic state
-            const translateMatch = currentTransform.match(/translate\(([^p]+)px, ([^p]+)px\)/);
-            if (translateMatch) {
-                unscaledX = parseFloat(translateMatch[1]);
-                unscaledY = parseFloat(translateMatch[2]);
-            }
-            lightboxCanvas.style.transform = `translate(${unscaledX}px, ${unscaledY}px) scale(${lightboxCurrentScale})`;
-            lightboxCanvas.style.cursor = lightboxCurrentScale > 1 ? 'grab' : 'default';
+            if (isSliderModeActive || !lightboxCanvas || lightboxCanvas.style.display === 'none') return;
+
+            // Read the complete transform (translate and scale) from lightboxImage
+            const currentImageTransform = lightboxImage.style.transform; // e.g., "translate(10px, 20px) scale(1.5)"
+            
+            lightboxCanvas.style.transform = currentImageTransform;
+            lightboxCanvas.style.cursor = lightboxCurrentScale > 1 ? (lightboxIsDragging ? 'grabbing' : 'grab') : 'default';
         }
 
         // --- PLACEHOLDERS ---
@@ -2597,17 +2593,15 @@ https://example.com/your-image3.png" required></textarea>
             if (isSliderModeActive) return;
             lightboxCurrentScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
 
-            // Update transform on the hidden img (if drag logic uses its style.transform)
             let unscaledX = 0, unscaledY = 0;
             const currentTransform = lightboxImage.style.transform;
             const translateMatch = currentTransform.match(/translate\(([^p]+)px, ([^p]+)px\)/);
             if (translateMatch) {
-                unscaledX = parseFloat(translateMatch[1]); // Keep current translation
+                unscaledX = parseFloat(translateMatch[1]);
                 unscaledY = parseFloat(translateMatch[2]);
             }
             lightboxImage.style.transform = `translate(${unscaledX}px, ${unscaledY}px) scale(${lightboxCurrentScale})`;
 
-            // Apply to canvas
             if (lightboxCanvas) {
                 applyLightboxCanvasTransform(); // This will set canvas transform and cursor
             }
@@ -2617,11 +2611,9 @@ https://example.com/your-image3.png" required></textarea>
         function resetLightboxZoomAndPosition() {
             if (isSliderModeActive) return;
             lightboxCurrentScale = 1;
-            // Reset transform on the hidden img (if drag logic uses its style.transform)
             lightboxImage.style.transform = 'translate(0px, 0px) scale(1)';
-            // Apply to canvas
             if (lightboxCanvas) {
-                applyLightboxCanvasTransform(); // This will set canvas transform and cursor
+                applyLightboxCanvasTransform();
             }
             lightboxZoomLevel.textContent = '100%';
         }
@@ -2661,17 +2653,33 @@ https://example.com/your-image3.png" required></textarea>
             setLightboxZoom(newScale);
         }
 
-        lightboxImage.addEventListener('mousedown', (e) => {
-            if (isSliderModeActive || lightboxCurrentScale <= 1 || lightboxImage.style.opacity === '0') return; // Don't drag if invisible/loading
+        // Lightbox Dragging - Attach to lightboxCanvas
+        lightboxCanvas.addEventListener('mousedown', (e) => {
+            // Only allow dragging if not in slider mode, zoomed in, and canvas is visible/loaded
+            if (isSliderModeActive || lightboxCurrentScale <= 1 || lightboxCanvas.style.opacity === '0' || lightboxCanvas.style.display === 'none') {
+                return;
+            }
+
             lightboxIsDragging = true;
-            lightboxImage.classList.add('grabbing');
-            const computedStyle = window.getComputedStyle(lightboxImage);
-            const transformMatrix = new DOMMatrix(computedStyle.transform);
-            lightboxImgInitialX = transformMatrix.m41;
-            lightboxImgInitialY = transformMatrix.m42;
+            lightboxCanvas.classList.add('grabbing'); // Apply grabbing cursor to the canvas
+            
+            // Get initial translation from lightboxImage (which holds the unscaled translate state)
+            // or from lightboxCanvas itself if it's directly transformed.
+            // Let's stick to lightboxImage as the state holder for unscaled translation for now.
+            const currentImageTransform = lightboxImage.style.transform;
+            const translateMatch = currentImageTransform.match(/translate\(([^p]+)px, ([^p]+)px\)/);
+            
+            if (translateMatch) {
+                lightboxImgInitialX = parseFloat(translateMatch[1]);
+                lightboxImgInitialY = parseFloat(translateMatch[2]);
+            } else {
+                lightboxImgInitialX = 0;
+                lightboxImgInitialY = 0;
+            }
+            
             lightboxDragStartX = e.clientX;
             lightboxDragStartY = e.clientY;
-            e.preventDefault();
+            e.preventDefault(); // Prevent text selection or other default browser drag behaviors
         });
 
         document.addEventListener('mousemove', (e) => {
@@ -2690,10 +2698,16 @@ https://example.com/your-image3.png" required></textarea>
             if (!lightboxIsDragging) return;
             const dxScreen = lastKnownMouseX - lightboxDragStartX;
             const dyScreen = lastKnownMouseY - lightboxDragStartY;
-            const newX = lightboxImgInitialX + dxScreen;
-            const newY = lightboxImgInitialY + dyScreen;
-            lightboxImage.style.transform = `translate(${newX}px, ${newY}px) scale(${lightboxCurrentScale})`;
-            if (lightboxCanvas && !isSliderModeActive) { // ADDED: Apply to canvas
+            
+            // New unscaled translation values
+            const newUnscaledX = lightboxImgInitialX + dxScreen;
+            const newUnscaledY = lightboxImgInitialY + dyScreen;
+            
+            // Update the transform on the hidden lightboxImage (our state holder for unscaled translation)
+            lightboxImage.style.transform = `translate(${newUnscaledX}px, ${newUnscaledY}px) scale(${lightboxCurrentScale})`;
+            
+            // Now, apply this transform (which includes the new translation and existing scale) to the visible lightboxCanvas
+            if (lightboxCanvas && !isSliderModeActive) {
                 applyLightboxCanvasTransform();
             }
         }
@@ -2703,7 +2717,7 @@ https://example.com/your-image3.png" required></textarea>
             if (isSliderModeActive) { handleSliderDragEnd(e); return; }
             if (lightboxIsDragging) {
                 lightboxIsDragging = false;
-                lightboxImage.classList.remove('grabbing');
+                lightboxCanvas.classList.remove('grabbing'); // Remove grabbing cursor from canvas
             }
         });
         // For mouse leaving the window while dragging
@@ -2711,7 +2725,7 @@ https://example.com/your-image3.png" required></textarea>
             if (isSliderModeActive) { if(activeSliderHandle) handleSliderDragEnd(e); return;}
             if (lightboxIsDragging) {
                 lightboxIsDragging = false;
-                lightboxImage.classList.remove('grabbing');
+                lightboxCanvas.classList.remove('grabbing'); // Remove grabbing cursor from canvas
             }
         });
         
