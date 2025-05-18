@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="app-version" content="1.2">
+    <meta name="app-version" content="1.2.1">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Batch Image Comparer (with Albums & Viewer)</title>
     <style>
@@ -1521,85 +1521,87 @@ https://example.com/your-image3.png" required></textarea>
             const ctx = canvasElement.getContext('2d');
 
             // --- IMMEDIATE RESET FOR NEW URL ---
-            // Regardless of previous state, if a new URL is coming, reset related elements.
-            // This is crucial to prevent previous image/error states from lingering.
-            imgElement.onload = null; // Detach old handlers
+            imgElement.onload = null;
             imgElement.onerror = null;
-            if (imgElement.src && imgElement.src !== "about:blank" && imgElement.src !== "#") { // If it was loading something
-                imgElement.src = "#"; // Stop any previous load
+            if (imgElement.src && imgElement.src !== "about:blank" && imgElement.src !== "#") {
+                imgElement.src = "#";
             }
             imgElement.removeAttribute('src');
-
+            imgElement.style.display = 'none'; // <<< ENSURE IMG IS ALWAYS HIDDEN
 
             canvasElement.style.display = 'none';
             canvasElement.style.opacity = '0';
             ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-            placeholderElement.style.backgroundColor = 'var(--bg-tertiary-color)'; // Reset placeholder color
-            placeholderElement.textContent = ''; // Clear text initially
-            placeholderElement.style.display = 'block'; // Show skeleton placeholder by default
+            placeholderElement.style.backgroundColor = 'var(--bg-tertiary-color)';
+            placeholderElement.textContent = '';
+            placeholderElement.style.display = 'block';
 
             if (spinnerElement) spinnerElement.style.display = 'block';
             // --- END IMMEDIATE RESET ---
 
-            if (!url) { // No URL provided, show appropriate empty state
+            if (!url) {
                 if (spinnerElement) spinnerElement.style.display = 'none';
                 placeholderElement.textContent = forSlider ? '' : (isSideCarousel ? '' : 'Select an album');
-                if (canvasElement.id.startsWith('canvas')) placeholderElement.textContent = 'No image for comparison'; // Main pane specific
+                if (canvasElement.id.startsWith('canvas') && !forSlider && !isSideCarousel) placeholderElement.textContent = 'No image for comparison';
 
-                imgElement.dataset.currentSrc = ""; // Clear dataset
+                imgElement.dataset.currentSrc = "";
                 imgElement.dataset.loadError = "false";
-                if (imageDimensionCache[url]) delete imageDimensionCache[url];
+                if (imageDimensionCache[url]) delete imageDimensionCache[url]; // Or mark as not loaded
                 return;
             }
 
-            // Set this unique ID for the current loading operation on this element combination
             const loadOperationId = Date.now() + Math.random();
             imgElement.dataset.loadOperationId = loadOperationId;
-            imgElement.dataset.currentSrc = url; // Set currentSrc *before* assigning src
+            imgElement.dataset.currentSrc = url;
             imgElement.dataset.loadError = "false";
 
-
-            // --- Placeholder Text & Sizing ---
-            // Set "Loading..." text on placeholder if we are actually going to load
             placeholderElement.textContent = 'Loading image...';
 
-            // Attempt to size placeholder if dimensions are known (from cache)
+            // Sizing logic for placeholder (remains the same)
             if (imageDimensionCache[url] && imageDimensionCache[url].loaded && imageDimensionCache[url].width && imageDimensionCache[url].height) {
                 const dims = imageDimensionCache[url];
-                const containerWidth = canvasElement.parentElement.clientWidth;
-                const cssMaxHeight = parseInt(getComputedStyle(canvasElement).maxHeight) || Infinity;
+                // Determine container based on context
+                let containerToSizeAgainst;
+                if (canvasElement === lightboxCanvas) containerToSizeAgainst = lightboxImageContainer;
+                else if (canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas) containerToSizeAgainst = canvasElement.parentElement; // The .carousel-side-image-container
+                else if (forSlider) containerToSizeAgainst = lightboxSliderContent;
+                else  containerToSizeAgainst = canvasElement.parentElement; // Main panes
+
+                const containerWidth = containerToSizeAgainst.clientWidth;
+                // For max-height, use the canvas's own styled max-height if available, or container's height
+                const cssMaxHeightStyle = getComputedStyle(canvasElement).maxHeight;
+                const cssMaxHeight = cssMaxHeightStyle && cssMaxHeightStyle !== 'none' ? parseInt(cssMaxHeightStyle) : Infinity;
+                const containerHeight = containerToSizeAgainst.clientHeight;
+
 
                 const targetWidth = Math.min(dims.width, containerWidth || dims.width);
-                const targetHeight = Math.min(dims.height, cssMaxHeight || dims.height);
-                
-                // Basic aspect ratio for placeholder (this is still a rough fit)
-                // A better way is CSS aspect-ratio property if you can set it on the placeholder
-                placeholderElement.style.width = `${targetWidth}px`;
-                placeholderElement.style.height = `${targetHeight}px`;
-                // For lightbox, placeholders are full size of their containers
+                let targetHeight = (targetWidth / dims.width) * dims.height; // Maintain aspect ratio
+                targetHeight = Math.min(targetHeight, cssMaxHeight || dims.height, containerHeight || dims.height);
+
+
+                // For lightbox and slider, placeholders are full size of their containers
                 if (canvasElement === lightboxCanvas || canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas || forSlider) {
                     placeholderElement.style.width = '100%';
                     placeholderElement.style.height = '100%';
+                } else { // Main panes
+                    // Approximate aspect ratio for placeholder
+                    placeholderElement.style.width = `${targetWidth}px`;
+                    placeholderElement.style.height = `${targetHeight}px`;
                 }
             } else {
-                // Default placeholder sizing if no dimensions (relies on existing CSS for .error-placeholder)
-                // For lightbox, ensure placeholders take up their intended space
                 if (canvasElement === lightboxCanvas || canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas || forSlider) {
                     placeholderElement.style.width = '100%';
                     placeholderElement.style.height = '100%';
                 } else {
-                    // For main panes, let existing CSS define placeholder size
-                    placeholderElement.style.width = ''; // Reset to CSS default
-                    placeholderElement.style.height = '';// Reset to CSS default
+                    placeholderElement.style.width = '';
+                    placeholderElement.style.height = '';
                 }
             }
-            // --- End Placeholder Text & Sizing ---
 
-            // Check our preload manager
+
             if (imagePreloadManager.cache[url] && imagePreloadManager.cache[url].complete && imagePreloadManager.cache[url].naturalWidth > 0) {
                 const preloadedImg = imagePreloadManager.cache[url];
-                // imgElement.dataset still needs to reflect this URL for consistency, already set above.
                 imageDimensionCache[url] = {
                     width: preloadedImg.naturalWidth,
                     height: preloadedImg.naturalHeight,
@@ -1610,16 +1612,15 @@ https://example.com/your-image3.png" required></textarea>
                 if (spinnerElement) spinnerElement.style.display = 'none';
                 placeholderElement.style.display = 'none';
                 drawImageOnCanvasWithContain(canvasElement, preloadedImg, isSideCarousel);
+                // canvasElement.style.display = 'block'; // drawImageOnCanvasWithContain handles this
+                // canvasElement.style.opacity = isSideCarousel ? '0.6' : '1'; // drawImageOnCanvasWithContain handles this
 
                 if (imgElement === lightboxImage) resetLightboxZoomAndPosition();
                 return;
             }
 
-            // If not preloaded, proceed with normal load via the hidden imgElement
             imgElement.onload = () => {
-                // CRITICAL CHECK: Only proceed if this onload corresponds to the *current* operation for this imgElement
                 if (imgElement.dataset.loadOperationId !== loadOperationId.toString() || imgElement.dataset.currentSrc !== url) {
-                    // console.warn("Stale onload event ignored for:", url, "on element:", imgElement.id);
                     return;
                 }
 
@@ -1630,35 +1631,35 @@ https://example.com/your-image3.png" required></textarea>
                     error: false
                 };
                 if (imagePreloadManager.isLoading.has(url)) imagePreloadManager.isLoading.delete(url);
-                imagePreloadManager.cache[url] = imgElement; // Cache the actual img element that loaded
+                imagePreloadManager.cache[url] = imgElement;
 
                 if (spinnerElement) spinnerElement.style.display = 'none';
                 placeholderElement.style.display = 'none';
                 drawImageOnCanvasWithContain(canvasElement, imgElement, isSideCarousel);
+                // canvasElement.style.display = 'block'; // drawImageOnCanvasWithContain handles this
+                // canvasElement.style.opacity = isSideCarousel ? '0.6' : '1'; // drawImageOnCanvasWithContain handles this
 
                 if (imgElement === lightboxImage) resetLightboxZoomAndPosition();
             };
 
             imgElement.onerror = () => {
-                // CRITICAL CHECK:
                 if (imgElement.dataset.loadOperationId !== loadOperationId.toString() || imgElement.dataset.currentSrc !== url) {
-                    // console.warn("Stale onerror event ignored for:", url, "on element:", imgElement.id);
                     return;
                 }
                 console.error("Error loading image:", url, "for element:", imgElement.id);
-                imageDimensionCache[url] = { error: true, loaded: false, width: 0, height: 0 }; // Store error
+                imageDimensionCache[url] = { error: true, loaded: false, width: 0, height: 0 };
                 if (imagePreloadManager.isLoading.has(url)) imagePreloadManager.isLoading.delete(url);
 
                 if (spinnerElement) spinnerElement.style.display = 'none';
-                placeholderElement.style.display = 'flex'; // Ensure placeholder is visible for error
+                placeholderElement.style.display = 'flex';
                 placeholderElement.style.backgroundColor = 'var(--error-color)';
                 placeholderElement.textContent = 'Load Error';
-                canvasElement.style.display = 'none';
+                canvasElement.style.display = 'none'; // Ensure canvas is hidden on error
                 imgElement.dataset.loadError = 'true';
             };
 
-            // Assign src to start loading. This MUST be the last step related to imgElement.src
             imgElement.src = url;
+            // imgElement.style.display = 'none'; // <<< Re-iterate: ensure it's hidden
         }
         
         // --- API CALLS ---
@@ -2476,8 +2477,8 @@ https://example.com/your-image3.png" required></textarea>
             }
             
             setImageWithPlaceholder(
-                lightboxImage,      // Hidden <img> loader
-                lightboxCanvas,     // Visible <canvas>
+                lightboxImage,
+                lightboxCanvas,
                 lightboxImagePlaceholder,
                 carouselCurrentImageSpinner,
                 centralImageUrl
@@ -2498,12 +2499,10 @@ https://example.com/your-image3.png" required></textarea>
                 carouselPrevImagePlaceholder,
                 null,
                 prevImageUrl,
-                true // isSideCarousel
+                true
             );
-            // carouselPrevCanvas.style.display = prevImageUrl ? 'block' : 'none';
-            // setImageWithPlaceholder handles display
-            carouselPrevImage.style.display = prevImageUrl ? 'block' : 'none'; // Control visibility of the img tag itself
-            carouselPrevImagePlaceholder.style.display = prevImageUrl ? carouselPrevImagePlaceholder.style.display : 'none'; // Hide placeholder if no URL
+            // REMOVE: carouselPrevImage.style.display = prevImageUrl ? 'block' : 'none'; 
+            // REMOVE: carouselPrevImagePlaceholder.style.display = prevImageUrl ? carouselPrevImagePlaceholder.style.display : 'none';
 
 
             // Next Image in Carousel
@@ -2520,23 +2519,16 @@ https://example.com/your-image3.png" required></textarea>
                 carouselNextImagePlaceholder,
                 null,
                 nextImageUrl,
-                true // isSideCarousel
+                true
             );
-            // carouselNextCanvas.style.display = nextImageUrl ? 'block' : 'none';
-            // setImageWithPlaceholder handles display
-            carouselNextImage.style.display = nextImageUrl ? 'block' : 'none';
-            carouselNextImagePlaceholder.style.display = nextImageUrl ? carouselNextImagePlaceholder.style.display : 'none';
+            // REMOVE: carouselNextImage.style.display = nextImageUrl ? 'block' : 'none';
+            // REMOVE: carouselNextImagePlaceholder.style.display = nextImageUrl ? carouselNextImagePlaceholder.style.display : 'none';
 
-            // Preload for carousel
+            // Preload for carousel (remains the same)
             if (lightboxActivePanesForView.length > 0) {
                 const currentPane = lightboxActivePanesForView[carouselCurrentImageSetIndex];
                 if (currentPane && currentPane.albumData && currentPane.albumData.imageUrls) {
-                    const urls = currentPane.albumData.imageUrls;
-                    // Preload next/prev within the current album being viewed centrally in carousel
-                    // This is different from preloading next/prev SETS.
-                    // This logic might need refinement depending on desired preload behavior.
-                    // For now, let's focus on preloading for the main view and next/prev sets.
-                    // Preloading for carousel's own next/prev image *within the current set*
+                    // ... preloading logic ...
                     if (carouselCurrentImageSetIndex > 0) {
                         const prevPaneInSet = lightboxActivePanesForView[carouselCurrentImageSetIndex - 1];
                         if (prevPaneInSet.albumData.imageUrls[currentPairIndex]) preloadImage(prevPaneInSet.albumData.imageUrls[currentPairIndex]);
@@ -2547,7 +2539,6 @@ https://example.com/your-image3.png" required></textarea>
                     }
                 }
             }
-
             updateLightboxControlsState();
         }
 
