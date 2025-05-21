@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="app-version" content="1.2.2a">
+    <meta name="app-version" content="1.2.2b">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Batch Image Comparer (with Albums & Viewer)</title>
     <style>
@@ -990,6 +990,7 @@ https://example.com/your-image3.png" required></textarea>
         const CANVAS_MAX_DIMENSION = 4096; // Safety for very large images on canvas
 
         const MAX_SELECTED_ALBUMS = 3;
+        const COOKIE_PREFIX = 'BiCompare_';
 
         const mainContainer = document.querySelector('.container');
         const apiKeyModalOverlay = document.getElementById('apiKeyModalOverlay');
@@ -1115,7 +1116,7 @@ https://example.com/your-image3.png" required></textarea>
         function showApiKeyModal() {
             mainContainer.classList.add('content-locked');
             apiKeyModalOverlay.classList.add('active');
-            dbUrlInput.value = localStorage.getItem('userProvidedDbUrl') || DEFAULT_DB_URL; // Pre-fill DB URL
+            dbUrlInput.value = localStorage.getItem(COOKIE_PREFIX + 'DbUrl') || DEFAULT_DB_URL; // Pre-fill DB URL
             apiKeyInput.focus();
         }
 
@@ -1147,8 +1148,8 @@ https://example.com/your-image3.png" required></textarea>
                 if (response.ok) {
                     userApiKey = keyToTest;
                     userDbUrl = dbUrlToTest;
-                    localStorage.setItem('userProvidedApiKey', keyToTest);
-                    localStorage.setItem('userProvidedDbUrl', dbUrlToTest);
+                    localStorage.setItem(COOKIE_PREFIX + 'ApiKey', keyToTest);
+                    localStorage.setItem(COOKIE_PREFIX + 'DbUrl', dbUrlToTest);
                     apiKeyStatusMsg.textContent = 'API access validated successfully!';
                     apiKeyStatusMsg.className = 'status-message status-success';
                     setTimeout(() => {
@@ -1168,8 +1169,8 @@ https://example.com/your-image3.png" required></textarea>
                 apiKeyStatusMsg.textContent = userMessage;
                 apiKeyStatusMsg.className = 'status-message status-error';
                 if (isFromStorage) {
-                    localStorage.removeItem('userProvidedApiKey');
-                    localStorage.removeItem('userProvidedDbUrl');
+                    localStorage.removeItem(COOKIE_PREFIX + 'ApiKey');
+                    localStorage.removeItem(COOKIE_PREFIX + 'DbUrl');
                 }
                 userApiKey = null;
                 userDbUrl = null;
@@ -1211,8 +1212,8 @@ https://example.com/your-image3.png" required></textarea>
 
 
         function checkAndPromptForApiAccess() {
-            const storedApiKey = localStorage.getItem('userProvidedApiKey');
-            const storedDbUrl = localStorage.getItem('userProvidedDbUrl');
+            const storedApiKey = localStorage.getItem(COOKIE_PREFIX + 'ApiKey');
+            const storedDbUrl = localStorage.getItem(COOKIE_PREFIX + 'DbUrl');
             if (storedApiKey && storedDbUrl) {
                 dbUrlInput.value = storedDbUrl; // Ensure it's displayed if modal re-opens
                 apiKeyInput.value = storedApiKey; // For user convenience if validation fails
@@ -1684,8 +1685,8 @@ https://example.com/your-image3.png" required></textarea>
                         
                         apiKeyStatusMsg.textContent = msg;
                         apiKeyStatusMsg.className = 'status-message status-error';
-                        localStorage.removeItem('userProvidedApiKey');
-                        localStorage.removeItem('userProvidedDbUrl');
+                        localStorage.removeItem(COOKIE_PREFIX + 'ApiKey');
+                        localStorage.removeItem(COOKIE_PREFIX + 'DbUrl');
                         userApiKey = null;
                         userDbUrl = null;
                         showApiKeyModal();
