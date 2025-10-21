@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="app-version" content="1.2.2b">
+    <meta name="app-version" content="1.3.0a">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Batch Image Comparer (with Albums & Viewer)</title>
     <style>
@@ -524,6 +524,51 @@
             text-align: center;
             min-width: 15px; 
         }
+
+        /* --- LIGHTBOX TWO IMAGE VIEW STYLES --- */
+        #lightboxTwoImageView {
+            display: flex;
+            gap: 10px; /* A slightly larger gap often looks better */
+            padding: 5px;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+        }
+        .two-image-pane {
+            position: relative; /* This is crucial for the absolute placeholder */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border-radius: 4px;
+        }
+
+        /* Styles the placeholder to be an absolute overlay */
+        .two-image-pane .skeleton-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1; /* Sits behind the spinner but covers the empty space */
+        }
+
+        /* The temporary loading layout state */
+        #lightboxTwoImageView.loading-layout .two-image-pane {
+            flex: 1; /* Temporarily expand panes to fill space */
+            min-width: 150px; /* Prevent total collapse on small screens */
+        }
+        .two-image-pane img, .two-image-pane canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            position: relative;
+            z-index: 2;
+            transition: opacity 0.4s ease-in-out;
+        }
+
         /* --- LIGHTBOX SLIDER STYLES --- */
         #lightboxSliderView {
             /* display: none; set by JS */
@@ -619,6 +664,14 @@
         .lightbox-image, .carousel-side-image, .slider-comparison-image {
             transition: opacity 0.4s ease-in-out; /* For smooth fade-in */
             background-color: transparent; /* Ensure no default bg interferes */
+        }
+
+        .carousel-side-image-container {
+            width: 100%;
+            height: 100%;
+        }
+        .carousel-side-image-container .skeleton-placeholder {
+            border-radius: 4px;
         }
 
         /* Ensure images within their containers are properly sized if wrappers are used */
@@ -917,6 +970,22 @@ https://example.com/your-image3.png" required></textarea>
                     </div>
                 </div>
 
+                <!-- NEW: Two Image View -->
+                <div id="lightboxTwoImageView" style="display: none; width: 100%; height: 100%; display: flex; gap: 5px; padding: 5px; box-sizing: border-box;">
+                    <div class="two-image-pane">
+                        <div class="skeleton-placeholder" id="twoViewImg1Placeholder" style="display:none; position: absolute; width:100%; height:100%;"></div>
+                        <img id="twoViewImg1" src="#" alt="Comparison Image 1" style="display:none;">
+                        <canvas id="twoViewCanvas1" style="display:none;"></canvas>
+                        <div id="twoViewImg1Spinner" class="loading-spinner" style="display:none; position:absolute; z-index:3;"></div>
+                    </div>
+                    <div class="two-image-pane">
+                        <div class="skeleton-placeholder" id="twoViewImg2Placeholder" style="display:none; position: absolute; width:100%; height:100%;"></div>
+                        <img id="twoViewImg2" src="#" alt="Comparison Image 2" style="display:none;">
+                        <canvas id="twoViewCanvas2" style="display:none;"></canvas>
+                        <div id="twoViewImg2Spinner" class="loading-spinner" style="display:none; position:absolute; z-index:3;"></div>
+                    </div>
+                </div>
+
                 <!-- General Lightbox Spinner (for mode switches, initial slider load) -->
                 <div id="lightboxImageSpinner" class="loading-spinner lightbox-image-spinner" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);"></div>
 
@@ -1044,6 +1113,23 @@ https://example.com/your-image3.png" required></textarea>
         const carouselCurrentImageSpinner = document.getElementById('carouselCurrentImageSpinner'); // NEW
         const carouselNextImage = document.getElementById('carouselNextImage'); // NEW
 
+        // NEW: Two-image view elements
+        const lightboxTwoImageView = document.getElementById('lightboxTwoImageView');
+        const twoViewPane1 = {
+            paneEl: document.getElementById('twoViewImg1').parentElement, // Get parent .two-image-pane
+            imgEl: document.getElementById('twoViewImg1'),
+            canvasEl: document.getElementById('twoViewCanvas1'),
+            placeholderEl: document.getElementById('twoViewImg1Placeholder'),
+            spinnerEl: document.getElementById('twoViewImg1Spinner')
+        };
+        const twoViewPane2 = {
+            paneEl: document.getElementById('twoViewImg2').parentElement, // Get parent .two-image-pane
+            imgEl: document.getElementById('twoViewImg2'),
+            canvasEl: document.getElementById('twoViewCanvas2'),
+            placeholderEl: document.getElementById('twoViewImg2Placeholder'),
+            spinnerEl: document.getElementById('twoViewImg2Spinner')
+        };
+
         // Placeholders
         const lightboxImagePlaceholder = document.getElementById('lightboxImagePlaceholder');
         const carouselPrevImagePlaceholder = document.getElementById('carouselPrevImagePlaceholder');
@@ -1110,6 +1196,7 @@ https://example.com/your-image3.png" required></textarea>
         let sharedViewContext = 'main';     // ADDED: To store if lightbox should auto-open ('lightbox' or 'main')
         let sharedPrimaryAlbumId = null; // ADDED: To store the ID of the album that was primarily in view
         let lastCarouselIndexBeforeSlider = 0;
+        let lastTwoViewPaneSizes = null;
 
 
         // --- API Key Modal Logic ---
@@ -1451,9 +1538,9 @@ https://example.com/your-image3.png" required></textarea>
             } else if (canvas.id.startsWith('sliderCanvas')) {
                 canvasContainerWidth = lightboxSliderContent.clientWidth;
                 canvasContainerHeight = lightboxSliderContent.clientHeight;
-            } else { // Fallback for any other canvas
-                canvasContainerWidth = canvas.clientWidth || canvas.width;
-                canvasContainerHeight = canvas.clientHeight || canvas.height;
+            } else { // Fallback for any other canvas, including two-image view
+                canvasContainerWidth = canvas.parentElement.clientWidth;
+                canvasContainerHeight = canvas.parentElement.clientHeight;
             }
             
             // This existing fallback is still useful if the above calculations yield zero for some reason.
@@ -1509,6 +1596,29 @@ https://example.com/your-image3.png" required></textarea>
         }
 
         // --- PLACEHOLDERS ---
+
+        function getFallbackPlaceholderSize(containerWidth, containerHeight) {
+            // Use a portrait aspect ratio (e.g., 3:4) for the fallback.
+            const FALLBACK_ASPECT_RATIO = 3 / 4;
+            const gap = 10;
+
+            // --- Prioritize a tall, portrait orientation ---
+            // Aim for the placeholders to be 80% of the container's height.
+            let placeholderHeight = containerHeight * 0.8;
+            let placeholderWidth = placeholderHeight * FALLBACK_ASPECT_RATIO;
+
+            // --- Sanity Check ---
+            // If this calculation makes the two placeholders too WIDE to fit side-by-side,
+            // then we must resize them based on the available width instead.
+            if (placeholderWidth * 2 + gap > containerWidth) {
+                placeholderWidth = (containerWidth - gap) / 2 * 0.95; // Use 95% of half the width to be safe
+                placeholderHeight = placeholderWidth / FALLBACK_ASPECT_RATIO;
+            }
+
+            // Ensure a minimum size to prevent them from becoming too small on weird screen sizes.
+            return { width: Math.max(50, placeholderWidth), height: Math.max(50, placeholderHeight) };
+        }
+
         function setImageWithPlaceholder(imgElement, canvasElement, placeholderElement, spinnerElement, url, isSideCarousel = false, forSlider = false) {
             if (!imgElement || !canvasElement || !placeholderElement) {
                 console.error("setImageWithPlaceholder: Critical element missing for URL:", url);
@@ -1524,7 +1634,7 @@ https://example.com/your-image3.png" required></textarea>
                 imgElement.src = "#";
             }
             imgElement.removeAttribute('src');
-            imgElement.style.display = 'none'; // <<< ENSURE IMG IS ALWAYS HIDDEN
+            imgElement.style.display = 'none';
 
             canvasElement.style.display = 'none';
             canvasElement.style.opacity = '0';
@@ -1539,12 +1649,24 @@ https://example.com/your-image3.png" required></textarea>
 
             if (!url) {
                 if (spinnerElement) spinnerElement.style.display = 'none';
-                placeholderElement.textContent = forSlider ? '' : (isSideCarousel ? '' : 'Select an album');
-                if (canvasElement.id.startsWith('canvas') && !forSlider && !isSideCarousel) placeholderElement.textContent = 'No image for comparison';
+                
+                // *** START FIX ***
+                // For side carousels or sliders, no URL means the element should be completely gone.
+                // For main panes or the central lightbox image, we show a message.
+                if (isSideCarousel || forSlider) {
+                    placeholderElement.style.display = 'none';
+                } else {
+                    placeholderElement.style.display = 'flex'; // Ensure it's visible
+                    let message = 'Select an album';
+                    if (canvasElement.id.startsWith('canvas')) message = 'No image for comparison';
+                    if (canvasElement.id === 'lightboxCanvas') message = 'No image at this index';
+                    placeholderElement.textContent = message;
+                }
+                // *** END FIX ***
 
                 imgElement.dataset.currentSrc = "";
                 imgElement.dataset.loadError = "false";
-                if (imageDimensionCache[url]) delete imageDimensionCache[url]; // Or mark as not loaded
+                if (imageDimensionCache[url]) delete imageDimensionCache[url];
                 return;
             }
 
@@ -1558,31 +1680,25 @@ https://example.com/your-image3.png" required></textarea>
             // Sizing logic for placeholder (remains the same)
             if (imageDimensionCache[url] && imageDimensionCache[url].loaded && imageDimensionCache[url].width && imageDimensionCache[url].height) {
                 const dims = imageDimensionCache[url];
-                // Determine container based on context
                 let containerToSizeAgainst;
                 if (canvasElement === lightboxCanvas) containerToSizeAgainst = lightboxImageContainer;
-                else if (canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas) containerToSizeAgainst = canvasElement.parentElement; // The .carousel-side-image-container
+                else if (canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas) containerToSizeAgainst = canvasElement.parentElement;
                 else if (forSlider) containerToSizeAgainst = lightboxSliderContent;
-                else  containerToSizeAgainst = canvasElement.parentElement; // Main panes
+                else  containerToSizeAgainst = canvasElement.parentElement;
 
                 const containerWidth = containerToSizeAgainst.clientWidth;
-                // For max-height, use the canvas's own styled max-height if available, or container's height
                 const cssMaxHeightStyle = getComputedStyle(canvasElement).maxHeight;
                 const cssMaxHeight = cssMaxHeightStyle && cssMaxHeightStyle !== 'none' ? parseInt(cssMaxHeightStyle) : Infinity;
                 const containerHeight = containerToSizeAgainst.clientHeight;
 
-
                 const targetWidth = Math.min(dims.width, containerWidth || dims.width);
-                let targetHeight = (targetWidth / dims.width) * dims.height; // Maintain aspect ratio
+                let targetHeight = (targetWidth / dims.width) * dims.height;
                 targetHeight = Math.min(targetHeight, cssMaxHeight || dims.height, containerHeight || dims.height);
 
-
-                // For lightbox and slider, placeholders are full size of their containers
                 if (canvasElement === lightboxCanvas || canvasElement === carouselPrevCanvas || canvasElement === carouselNextCanvas || forSlider) {
                     placeholderElement.style.width = '100%';
                     placeholderElement.style.height = '100%';
-                } else { // Main panes
-                    // Approximate aspect ratio for placeholder
+                } else {
                     placeholderElement.style.width = `${targetWidth}px`;
                     placeholderElement.style.height = `${targetHeight}px`;
                 }
@@ -1609,8 +1725,6 @@ https://example.com/your-image3.png" required></textarea>
                 if (spinnerElement) spinnerElement.style.display = 'none';
                 placeholderElement.style.display = 'none';
                 drawImageOnCanvasWithContain(canvasElement, preloadedImg, isSideCarousel);
-                // canvasElement.style.display = 'block'; // drawImageOnCanvasWithContain handles this
-                // canvasElement.style.opacity = isSideCarousel ? '0.6' : '1'; // drawImageOnCanvasWithContain handles this
 
                 if (imgElement === lightboxImage) resetLightboxZoomAndPosition();
                 return;
@@ -1633,8 +1747,6 @@ https://example.com/your-image3.png" required></textarea>
                 if (spinnerElement) spinnerElement.style.display = 'none';
                 placeholderElement.style.display = 'none';
                 drawImageOnCanvasWithContain(canvasElement, imgElement, isSideCarousel);
-                // canvasElement.style.display = 'block'; // drawImageOnCanvasWithContain handles this
-                // canvasElement.style.opacity = isSideCarousel ? '0.6' : '1'; // drawImageOnCanvasWithContain handles this
 
                 if (imgElement === lightboxImage) resetLightboxZoomAndPosition();
             };
@@ -1651,12 +1763,11 @@ https://example.com/your-image3.png" required></textarea>
                 placeholderElement.style.display = 'flex';
                 placeholderElement.style.backgroundColor = 'var(--error-color)';
                 placeholderElement.textContent = 'Load Error';
-                canvasElement.style.display = 'none'; // Ensure canvas is hidden on error
+                canvasElement.style.display = 'none';
                 imgElement.dataset.loadError = 'true';
             };
 
             imgElement.src = url;
-            // imgElement.style.display = 'none'; // <<< Re-iterate: ensure it's hidden
         }
         
         // --- API CALLS ---
@@ -1928,6 +2039,36 @@ https://example.com/your-image3.png" required></textarea>
                 if (currentPairIndex > 0) {
                     preloadImage(pane.urls[currentPairIndex - 1]);
                 }
+            }
+        }
+
+        async function loadAndDrawTwoViewImage(pane, url, finalDims) {
+            if (!url) {
+                pane.placeholderEl.textContent = 'No Image';
+                pane.placeholderEl.style.backgroundColor = 'var(--bg-tertiary-color)';
+                return;
+            }
+            
+            try {
+                const loadedImg = await loadImagePromise(url); // This promise resolves with the image or null
+                if (loadedImg) {
+                    // Draw the image to its canvas
+                    pane.canvasEl.width = finalDims.width;
+                    pane.canvasEl.height = finalDims.height;
+                    pane.canvasEl.getContext('2d').drawImage(loadedImg, 0, 0, finalDims.width, finalDims.height);
+                    
+                    // Successfully loaded: hide placeholder and show the canvas
+                    pane.placeholderEl.style.display = 'none';
+                    pane.canvasEl.style.display = 'block';
+                } else {
+                    // Handle image load error
+                    pane.placeholderEl.textContent = 'Load Error';
+                    pane.placeholderEl.style.backgroundColor = 'var(--error-color)';
+                }
+            } catch (err) {
+                console.error("Error during individual image load for two-view:", err);
+                pane.placeholderEl.textContent = 'Load Error';
+                pane.placeholderEl.style.backgroundColor = 'var(--error-color)';
             }
         }
 
@@ -2292,6 +2433,29 @@ https://example.com/your-image3.png" required></textarea>
         }
 
         // --- LIGHTBOX ---
+        // NEW HELPER
+        function getImageDimensions(url) {
+            return new Promise((resolve, reject) => {
+                if (!url) {
+                    return resolve({ width: 0, height: 0 }); // Resolve with zero for empty URL
+                }
+                if (imageDimensionCache[url] && imageDimensionCache[url].loaded) {
+                    return resolve({ width: imageDimensionCache[url].width, height: imageDimensionCache[url].height });
+                }
+                const img = new Image();
+                img.onload = () => {
+                    const dims = { width: img.naturalWidth, height: img.naturalHeight };
+                    imageDimensionCache[url] = { ...dims, loaded: true, error: false };
+                    resolve(dims);
+                };
+                img.onerror = () => {
+                    imageDimensionCache[url] = { width: 0, height: 0, loaded: false, error: true };
+                    reject(new Error(`Failed to load image for dimension check: ${url}`));
+                };
+                img.src = url;
+            });
+        }
+
         function openLightbox(paneGlobalIndex, imageIdxInAlbum, options = {}) {
             // imageIdxInAlbum is currentPairIndex from the main page.
             // paneGlobalIndex is the index of the *imagePane* element (0, 1, or 2) that was clicked.
@@ -2304,6 +2468,10 @@ https://example.com/your-image3.png" required></textarea>
                 p.albumData.imageUrls.length > imageIdxInAlbum && // Does the album have an image at this index?
                 p.albumData.imageUrls[imageIdxInAlbum]       // Is the URL at this index valid?
             );
+
+            if (lightboxActivePanesForView.length !== 2) {
+                lastTwoViewPaneSizes = null;
+            }
 
             if (lightboxActivePanesForView.length === 0) {
                 console.error("Cannot open lightbox: No active panes with images at the current index to form a carousel set.");
@@ -2379,6 +2547,19 @@ https://example.com/your-image3.png" required></textarea>
             });
             [sliderImg1Placeholder, sliderImg2Placeholder, sliderImg3Placeholder].forEach(p => { if (p) p.style.display = 'none'; });
 
+            // NEW: Reset two-image view
+            lightboxTwoImageView.style.display = 'none';
+            [twoViewPane1, twoViewPane2].forEach(pane => {
+                if (pane.imgEl) { pane.imgEl.src = "#"; pane.imgEl.style.display = 'none'; }
+                if (pane.canvasEl) {
+                    const ctx = pane.canvasEl.getContext('2d');
+                    ctx.clearRect(0, 0, pane.canvasEl.width, pane.canvasEl.height);
+                    pane.canvasEl.style.display = 'none';
+                }
+                if (pane.placeholderEl) pane.placeholderEl.style.display = 'none';
+                if (pane.spinnerEl) pane.spinnerEl.style.display = 'none';
+            });
+
             lightboxOverlay.classList.remove('active');
             document.removeEventListener('keydown', handleLightboxKeyPress);
 
@@ -2427,26 +2608,167 @@ https://example.com/your-image3.png" required></textarea>
         }
         
         function updateLightboxView() {
-            if (!lightboxOverlay.classList.contains('active')) return; // Don't update if lightbox isn't open
+            if (!lightboxOverlay.classList.contains('active')) return;
 
-            if (isSliderModeActive) {
+            // NEW: Handle two-image view
+            if (!isSliderModeActive && lightboxActivePanesForView.length === 2) {
                 if (lightboxCarousel) lightboxCarousel.style.display = 'none';
-                if (carouselCurrentImageSpinner) carouselCurrentImageSpinner.style.display = 'none';
+                if (lightboxSliderView) lightboxSliderView.style.display = 'none';
+                if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
+                
+                lightboxTwoImageView.style.display = 'flex';
+                setupTwoImageView();
+            } else if (isSliderModeActive) { // Existing slider logic
+                if (lightboxCarousel) lightboxCarousel.style.display = 'none';
+                lightboxTwoImageView.style.display = 'none';
                 
                 lightboxSliderView.style.display = 'flex';
-                if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'block'; // Show general spinner for slider setup
-                setupSliderComparison(); // This will hide lightboxImageSpinner when done
-            } else { // Carousel Mode
-                lightboxSliderView.style.display = 'none';
-                if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none'; // Hide general spinner
+                if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'block';
+                setupSliderComparison();
+            } else { // Existing carousel logic (for 1, 3, or more images)
+                if (lightboxSliderView) lightboxSliderView.style.display = 'none';
+                lightboxTwoImageView.style.display = 'none';
+                if (lightboxImageSpinner) lightboxImageSpinner.style.display = 'none';
                 
                 if (lightboxCarousel) lightboxCarousel.style.display = 'flex';
                 
-                resetLightboxZoomAndPosition(); // Applies to the central image (which is `lightboxImage` element)
-                updateCarouselDisplay(); // New function to render the 3-image carousel
+                resetLightboxZoomAndPosition();
+                updateCarouselDisplay();
             }
             updateLightboxControlsState();
             updateSliderToggleButton();
+        }
+
+        function loadImagePromise(url) {
+            return new Promise((resolve) => {
+                if (!url) {
+                    return resolve(null);
+                }
+                // If image is already fully loaded in our manager, resolve immediately.
+                if (imagePreloadManager.cache[url] && imagePreloadManager.cache[url].complete) {
+                    return resolve(imagePreloadManager.cache[url]);
+                }
+                
+                const img = new Image();
+                img.onload = () => {
+                    imagePreloadManager.cache[url] = img; // Add to cache on successful load
+                    resolve(img);
+                };
+                img.onerror = () => {
+                    console.error('Failed to load image via loadImagePromise:', url);
+                    resolve(null); // Resolve with null on error instead of rejecting
+                };
+                img.src = url;
+            });
+        }
+
+        async function setupTwoImageView() {
+            const pane1Data = lightboxActivePanesForView[0];
+            const pane2Data = lightboxActivePanesForView[1];
+
+            const url1 = pane1Data?.albumData?.imageUrls?.[currentPairIndex];
+            const url2 = pane2Data?.albumData?.imageUrls?.[currentPairIndex];
+
+            // --- STAGE 1: SETUP INITIAL PLACEHOLDERS USING PREVIOUS OR FALLBACK SIZE ---
+            let initialSize1, initialSize2;
+
+            if (lastTwoViewPaneSizes && lastTwoViewPaneSizes[0] && lastTwoViewPaneSizes[1]) {
+                // SUCCESS: Use the stored sizes from the previous image set for a smooth transition.
+                initialSize1 = lastTwoViewPaneSizes[0];
+                initialSize2 = lastTwoViewPaneSizes[1];
+            } else {
+                // FIRST RUN: No previous sizes exist, so calculate a smart fallback.
+                const containerWidth = lightboxImageContainer.clientWidth;
+                const containerHeight = lightboxImageContainer.clientHeight;
+                const fallbackSize = getFallbackPlaceholderSize(containerWidth, containerHeight);
+                initialSize1 = fallbackSize;
+                initialSize2 = fallbackSize;
+            }
+
+            // Apply the determined initial sizes to the panes immediately.
+            [twoViewPane1, twoViewPane2].forEach((pane, index) => {
+                const size = index === 0 ? initialSize1 : initialSize2;
+                pane.paneEl.style.width = `${size.width}px`;
+                pane.paneEl.style.height = `${size.height}px`;
+                
+                // Set visual state
+                pane.placeholderEl.style.display = 'block';
+                pane.placeholderEl.textContent = '';
+                pane.placeholderEl.style.backgroundColor = 'var(--bg-tertiary-color)';
+                pane.canvasEl.style.display = 'none';
+                pane.spinnerEl.style.display = 'none';
+            });
+            // Default to side-by-side for the initial placeholder layout
+            lightboxTwoImageView.style.flexDirection = 'row';
+
+
+            // --- STAGE 2: ASYNCHRONOUSLY CALCULATE FINAL LAYOUT & LOAD ---
+            (async () => {
+                const [dims1, dims2] = await Promise.all([
+                    getImageDimensions(url1).catch(() => ({ width: initialSize1.width, height: initialSize1.height, error: true })),
+                    getImageDimensions(url2).catch(() => ({ width: initialSize2.width, height: initialSize2.height, error: true }))
+                ]);
+
+                // Determine final layout (row or column)
+                const ar1 = dims1.width > 0 ? dims1.width / dims1.height : 1;
+                const ar2 = dims2.width > 0 ? dims2.width / dims2.height : 1;
+                const avgAspectRatio = (ar1 + ar2) / 2;
+                const isLandscapeLayout = avgAspectRatio > 1.2;
+                lightboxTwoImageView.style.flexDirection = isLandscapeLayout ? 'column' : 'row';
+
+                // Calculate the final scaled size for the panes
+                const gap = 10;
+                const containerWidth = lightboxImageContainer.clientWidth;
+                const containerHeight = lightboxImageContainer.clientHeight;
+                let totalUnscaledWidth, totalUnscaledHeight;
+                if (isLandscapeLayout) { // Top/Bottom
+                    totalUnscaledWidth = Math.max(dims1.width, dims2.width);
+                    totalUnscaledHeight = dims1.height + dims2.height + gap;
+                } else { // Side-by-side
+                    totalUnscaledWidth = dims1.width + dims2.width + gap;
+                    totalUnscaledHeight = Math.max(dims1.height, dims2.height);
+                }
+
+                const scaleX = totalUnscaledWidth > containerWidth ? containerWidth / totalUnscaledWidth : 1;
+                const scaleY = totalUnscaledHeight > containerHeight ? containerHeight / totalUnscaledHeight : 1;
+                const scale = Math.min(scaleX, scaleY, 1);
+
+                const finalDims1 = { width: dims1.width * scale, height: dims1.height * scale };
+                const finalDims2 = { width: dims2.width * scale, height: dims2.height * scale };
+
+                // *** CRUCIAL STEP: Store the new final dimensions for the *next* navigation cycle.
+                lastTwoViewPaneSizes = [finalDims1, finalDims2];
+
+                // Add a transition for a smooth resize from initial to final size
+                twoViewPane1.paneEl.style.transition = 'width 0.3s ease, height 0.3s ease';
+                twoViewPane2.paneEl.style.transition = 'width 0.3s ease, height 0.3s ease';
+
+                // Apply the final, correct dimensions to the panes.
+                twoViewPane1.paneEl.style.width = `${finalDims1.width}px`;
+                twoViewPane1.paneEl.style.height = `${finalDims1.height}px`;
+                twoViewPane2.paneEl.style.width = `${finalDims2.width}px`;
+                twoViewPane2.paneEl.style.height = `${finalDims2.height}px`;
+
+                // Load images independently now that the final layout is set
+                loadAndDrawTwoViewImage(twoViewPane1, url1, finalDims1);
+                loadAndDrawTwoViewImage(twoViewPane2, url2, finalDims2);
+
+            })(); // Self-invoking async function to avoid blocking
+
+            // --- STAGE 3: UPDATE CAPTION IMMEDIATELY ---
+            const title1 = pane1Data?.albumData?.title || 'Album 1';
+            const title2 = pane2Data?.albumData?.title || 'Album 2';
+            lightboxCaption.innerHTML = '';
+            lightboxCaption.appendChild(document.createTextNode('Comparing: '));
+            const titleSpan1 = document.createElement('span');
+            titleSpan1.className = 'image-title';
+            titleSpan1.textContent = title1;
+            const titleSpan2 = document.createElement('span');
+            titleSpan2.className = 'image-title';
+            titleSpan2.textContent = title2;
+            lightboxCaption.appendChild(titleSpan1);
+            lightboxCaption.appendChild(document.createTextNode(' vs '));
+            lightboxCaption.appendChild(titleSpan2);
         }
 
         function updateCarouselDisplay() {
@@ -2556,9 +2878,10 @@ https://example.com/your-image3.png" required></textarea>
             let navDisabled = true; // For the main carousel < > buttons
             let canGoPrevCarousel = false;
             let canGoNextCarousel = false;
+            const isTwoImageView = !isSliderModeActive && lightboxActivePanesForView.length === 2;
 
-            if (isSliderModeActive) {
-                navDisabled = true; // Main < > buttons
+            if (isSliderModeActive || isTwoImageView) {
+                navDisabled = true; // Main < > buttons are for carousel, disable them
             } else if (lightboxActivePanesForView.length > 0) { // Carousel mode
                 navDisabled = lightboxActivePanesForView.length <= 1; // Disable if only one image in the set
                 canGoPrevCarousel = carouselCurrentImageSetIndex > 0;
@@ -2567,7 +2890,7 @@ https://example.com/your-image3.png" required></textarea>
                  navDisabled = true;
             }
 
-            const zoomDisabled = isSliderModeActive; // Zoom controls are for the central carousel image
+            const zoomDisabled = isSliderModeActive || isTwoImageView; // Zoom controls are disabled for slider and two-image view
             lightboxZoomInBtn.disabled = zoomDisabled;
             lightboxZoomOutBtn.disabled = zoomDisabled;
             lightboxZoomResetBtn.disabled = zoomDisabled;
@@ -2578,7 +2901,7 @@ https://example.com/your-image3.png" required></textarea>
                  lightboxZoomLevel.textContent = `${Math.round(lightboxCurrentScale * 100)}%`;
             }
 
-            // Share button should be enabled if there's content in the lightbox (either mode)
+            // Share button should be enabled if there's content in the lightbox (any mode)
             const shareDisabled = lightboxActivePanesForView.length === 0;
             lightboxShareBtn.disabled = shareDisabled;
 
@@ -2591,7 +2914,9 @@ https://example.com/your-image3.png" required></textarea>
 
 
         function setLightboxZoom(newScale) {
-            if (isSliderModeActive) return;
+            const isTwoImageView = !isSliderModeActive && lightboxActivePanesForView.length === 2;
+            if (isSliderModeActive || isTwoImageView) return;
+
             lightboxCurrentScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
 
             let unscaledX = 0, unscaledY = 0;
@@ -2647,6 +2972,9 @@ https://example.com/your-image3.png" required></textarea>
         }, { passive: false });
 
         function handleLightboxWheel(e) {
+            const isTwoImageView = !isSliderModeActive && lightboxActivePanesForView.length === 2;
+            if (isSliderModeActive || isTwoImageView) return;
+            
             e.preventDefault();
             const zoomFactor = 0.5; 
             const direction = e.deltaY < 0 ? 1 : -1;
@@ -2738,43 +3066,39 @@ https://example.com/your-image3.png" required></textarea>
                 return;
             }
 
+            const isTwoImageView = !isSliderModeActive && lightboxActivePanesForView.length === 2;
+
             // SHIFT + ARROW KEYS: Navigate within the current carousel set (intra-set)
             if (e.shiftKey) {
-                if (isSliderModeActive) return; // Carousel (intra-set) navigation is not for slider mode
+                if (isSliderModeActive || isTwoImageView) return; // Block intra-set nav for slider and two-image view
 
                 if (e.key === 'ArrowLeft') { navigateCarousel(-1); return; }
                 if (e.key === 'ArrowRight') { navigateCarousel(1); return; }
-                // If other Shift combinations are needed, they'd go here.
-                // Otherwise, if it was Shift + something else, let it fall through or be ignored.
             }
 
-            // Handle 's' for toggling slider mode universally (if not a Shift+Arrow combo)
-            if ((e.key === 's' || e.key === 'S') && !e.shiftKey) { // Ensure it's not Shift+S if that could be a conflict
+            // Handle 's' for toggling slider mode universally
+            if ((e.key === 's' || e.key === 'S') && !e.shiftKey) {
                 toggleSliderComparisonMode();
-                return; // Consume 's' keypress
-            }
-
-            // If in slider mode, and it wasn't 's' or 'Escape' or a Shift+Arrow for carousel:
-            // We only want ArrowLeft/ArrowRight (for set navigation) to proceed.
-            // Other keys like zoom (+, -, 0) should be blocked for slider.
-            if (isSliderModeActive) {
-                if (e.key === 'ArrowLeft') {
-                    navigateImageSet(-1); // Navigate between comparison sets
-                } else if (e.key === 'ArrowRight') {
-                    navigateImageSet(1);  // Navigate between comparison sets
-                }
-                // Any other key in slider mode (not 's', 'Escape', or Arrows for set nav) is ignored.
                 return;
             }
 
-            // --- If NOT in slider mode (i.e., Carousel Mode) AND not a consumed Shift+Arrow or 's' ---
-            // Arrow keys (NO SHIFT) for Image Set navigation
-            // Other keys for zoom, etc.
+            // In slider or two-image mode, only allow set navigation (no shift)
+            if (isSliderModeActive || isTwoImageView) {
+                if (e.key === 'ArrowLeft') {
+                    navigateImageSet(-1);
+                } else if (e.key === 'ArrowRight') {
+                    navigateImageSet(1);
+                }
+                // Any other key is ignored.
+                return;
+            }
+
+            // --- Carousel Mode Keys ---
             switch (e.key) {
-                case 'ArrowLeft': // NO SHIFT: Navigate between comparison sets (changes currentPairIndex)
+                case 'ArrowLeft': // NO SHIFT: Navigate between comparison sets
                     navigateImageSet(-1);
                     break;
-                case 'ArrowRight': // NO SHIFT: Navigate between comparison sets (changes currentPairIndex)
+                case 'ArrowRight': // NO SHIFT: Navigate between comparison sets
                     navigateImageSet(1);
                     break;
                 case '+':
@@ -2787,7 +3111,6 @@ https://example.com/your-image3.png" required></textarea>
                 case '0':
                     resetLightboxZoomAndPosition();
                     break;
-                // 's' is handled above now
             }
         }
 
@@ -2812,14 +3135,12 @@ https://example.com/your-image3.png" required></textarea>
             const shareIndex = currentPairIndex; // Global currentPairIndex
             let primaryAlbumIdForShare = null;
 
-            if (isSliderModeActive) {
-                // For slider mode, lightboxActivePanesForView holds the slider images.
-                // The "primary" can be considered the first album in the slider set.
+            if (isSliderModeActive || lightboxActivePanesForView.length === 2) {
+                // For slider or two-image mode, the "primary" can be considered the first album in the set.
                 if (lightboxActivePanesForView.length > 0 && lightboxActivePanesForView[0].albumData) {
                     primaryAlbumIdForShare = lightboxActivePanesForView[0].albumData._id;
                 }
             } else { // Carousel Mode
-                // lightboxActivePanesForView holds the images in the current comparison set.
                 // carouselCurrentImageSetIndex points to the one in the center.
                 if (carouselCurrentImageSetIndex < lightboxActivePanesForView.length &&
                     lightboxActivePanesForView[carouselCurrentImageSetIndex] &&
